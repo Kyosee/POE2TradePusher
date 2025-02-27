@@ -20,10 +20,10 @@ POE2 Trade Pusher 是一个用于《流放之路2》(Path of Exile 2) 的交易�
 pip install pyinstaller
 
 # 打包命令
-pyinstaller --noconsole --icon=assets/icon.ico --add-data "config.json;." --name POE2TradePusher main.py
+pyinstaller --onefile --noconsole --icon=assets/icon.ico --add-data "config.json;." --name POE2TradePusher main.py
 ```
 
-打包后的文件将在 `dist/POE2TradePusher` 目录下生成。
+打包后的文件将在 `dist` 目录下生成单个exe文件。
 
 ## 使用说明
 
