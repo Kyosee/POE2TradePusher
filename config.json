@@ -1,0 +1,11 @@
+{
+  "minimize_to_tray": false,
+  "interval": 100,
+  "push_interval": 0,
+  "app_token": "",
+  "uid": "",
+  "keywords": [
+    "我想購買"
+  ],
+  "log_path": ""
+}
