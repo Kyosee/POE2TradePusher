@@ -5,6 +5,10 @@ import json
 import requests
 import chardet
 import threading
+import pystray
+import PIL.Image
+import PIL.ImageDraw
+import PIL.ImageFont
 from datetime import datetime
 from tkinter import *
 from tkinter import ttk, filedialog, messagebox, scrolledtext
@@ -33,6 +37,7 @@ class AdvancedLogMonitorPro:
         self.create_widgets()
         self.setup_layout()
         self.setup_bindings()
+        self.setup_tray()
         self.load_config()
 
     def setup_style(self):
@@ -131,6 +136,101 @@ class AdvancedLogMonitorPro:
 
     def setup_bindings(self):
         self.root.bind('<Control-s>', lambda e: self.save_config())
+        self.root.protocol('WM_DELETE_WINDOW', self.on_close)
+        self.root.bind('<Unmap>', self.on_minimize)
+
+    def setup_tray(self):
+        """初始化系统托盘"""
+        self.is_minimized = False
+        try:
+            # 尝试加载自定义图标
+            icon_path = os.path.join('assets', 'icon.ico')
+            if os.path.exists(icon_path):
+                image = PIL.Image.open(icon_path)
+                # 确保图标大小合适
+                image = image.resize((32, 32), PIL.Image.Resampling.LANCZOS)
+            else:
+                # 创建默认图标
+                image = PIL.Image.new('RGBA', (32, 32), (0, 0, 0, 0))
+                draw = PIL.ImageDraw.Draw(image)
+                # 创建一个圆形背景
+                draw.ellipse((2, 2, 30, 30), fill='#0066cc')
+                # 加载或创建字体
+                try:
+                    font = PIL.ImageFont.truetype("arial", 12)
+                except:
+                    font = PIL.ImageFont.load_default()
+                # 添加文字
+                draw.text((8, 8), "P2", fill='white', font=font)
+                self.log_message("使用默认图标", "INFO")
+        except Exception as e:
+            # 创建最简单的备用图标
+            image = PIL.Image.new('RGBA', (32, 32), color=(0, 0, 0, 0))
+            draw = PIL.ImageDraw.Draw(image)
+            draw.ellipse((2, 2, 30, 30), fill='#999999')
+            self.log_message(f"使用简单图标: {str(e)}", "WARN")
+        
+        # 创建托盘菜单
+        menu = pystray.Menu(lambda: (
+            pystray.MenuItem("显示/隐藏", self.toggle_window, default=True),
+            pystray.MenuItem("启动监控", self.start_monitoring),
+            pystray.MenuItem("停止监控", self.stop_monitoring),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("退出", self.quit_app)
+        ))
+        
+        # 创建托盘图标
+        self.tray_icon = pystray.Icon(
+            "POE2TradePusher",
+            image,
+            "POE2 Trade Pusher",
+            menu
+        )
+        
+        # 在单独的线程中运行托盘图标
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def on_minimize(self, event):
+        """处理窗口最小化事件"""
+        if not self.is_minimized:
+            self.root.withdraw()
+            self.is_minimized = True
+
+    def toggle_window(self, icon=None, item=None):
+        """切换窗口显示状态"""
+        if self.is_minimized:
+            self.root.deiconify()
+            self.root.lift()
+            self.root.focus_force()
+            self.is_minimized = False
+        else:
+            self.root.withdraw()
+            self.is_minimized = True
+
+    def start_monitoring(self, icon=None, item=None):
+        """从托盘菜单启动监控"""
+        if not self.monitoring:
+            self.toggle_monitor()
+
+    def stop_monitoring(self, icon=None, item=None):
+        """从托盘菜单停止监控"""
+        if self.monitoring:
+            self.toggle_monitor()
+
+    def quit_app(self, icon=None, item=None):
+        """退出应用程序"""
+        if self.monitoring:
+            self.toggle_monitor()  # 停止监控
+        self.tray_icon.stop()  # 删除托盘图标
+        self.root.quit()
+
+    def on_close(self):
+        """处理窗口关闭事件"""
+        if messagebox.askyesno("确认", "是否要最小化到系统托盘？\n\n选择\"否\"将退出程序"):
+            self.root.withdraw()
+            self.is_minimized = True
+        else:
+            self.quit_app()
 
     def load_config(self):
         try:
