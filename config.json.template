@@ -3,6 +3,10 @@
   "push_interval": 0,
   "app_token": "",
   "uid": "",
-  "keywords": [],
+  "keywords": [
+    "单关键词示例",
+    "关键词1|关键词2",
+    "词组1|词组2|词组3"
+  ],
   "log_path": ""
 }

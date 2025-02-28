@@ -1,5 +1,7 @@
 # POE2 Trade Pusher
 
+> **特别说明**: 本项目仅用于个人学习和技术交流目的，展示如何使用Python进行GUI开发、日志监控和消息推送。请勿用于其他用途。
+
 POE2交易信息监控推送工具，支持关键词监控、WxPusher推送和系统托盘操作。
 
 ## 功能特点
@@ -28,7 +30,9 @@ cp config.json.template config.json
 - app_token：WxPusher的APP Token
 - uid：WxPusher的用户UID
 - log_path：POE2日志文件路径
-- keywords：需要监控的关键词列表
+- keywords：需要监控的关键词列表。支持以下格式：
+  - 单个关键词：直接添加关键词字符串
+  - 多关键词组合：使用"|"分隔多个关键词，例如"关键词1|关键词2"，当所有关键词都匹配时才会触发推送
 - interval：检测间隔（毫秒）
 - push_interval：推送间隔（毫秒，0表示立即推送）
 

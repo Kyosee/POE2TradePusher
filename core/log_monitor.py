@@ -13,7 +13,7 @@ class LogMonitor:
         self.log_callback = log_callback or (lambda msg, level: None)
         
         # 文件监控相关参数
-        self.file_utils = FileUtils()
+        self.file_utils = FileUtils(self.log_callback)
         self.last_position = 0
         self.last_timestamp = None
         self.monitoring = False
@@ -30,6 +30,18 @@ class LogMonitor:
             # 初始化监控状态
             file_path = self.config.get('log_path')
             if os.path.exists(file_path):
+                # 检查并转换文件编码
+                success, is_utf8, msg = self.file_utils.detect_encoding(file_path)
+                if not success:
+                    self.log_callback(msg, "ERROR")
+                    return False
+                if not is_utf8:
+                    success, msg = self.file_utils.convert_to_utf8(file_path)
+                    if not success:
+                        self.log_callback(msg, "ERROR")
+                        return False
+                    self.log_callback(msg, "INFO")
+                
                 self.last_position = os.path.getsize(file_path)
                 self.last_timestamp = self.file_utils.get_last_timestamp(file_path)
                 
@@ -116,9 +128,11 @@ class LogMonitor:
                     decoded = self.file_utils.decode_content(content)
                 except UnicodeDecodeError as ude:
                     self.log_callback(f"解码失败: {str(ude)}，尝试重新检测编码...", "WARN")
-                    if self.file_utils.detect_encoding(file_path)[0]:
+                    success, _, msg = self.file_utils.detect_encoding(file_path)
+                    if success:
                         decoded = self.file_utils.decode_content(content)
                     else:
+                        self.log_callback(msg, "ERROR")
                         return
 
                 # 处理日志行
@@ -179,10 +193,20 @@ class LogMonitor:
             # 提取内容
             content = self.file_utils.extract_content(line)
             
-            # 关键词匹配
+            # 关键词匹配（支持多关键词组合）
             for kw in self.config.get('keywords', []):
-                if kw in line:
-                    if self.push_handler:
-                        self.push_handler(kw, content)
-                    self.last_push_time = time.time() * 1000  # 更新推送时间
-                    break
+                if '|' in kw:
+                    # 多关键词组合模式
+                    keywords = [k.strip() for k in kw.split('|')]
+                    if all(keyword in line for keyword in keywords):
+                        if self.push_handler:
+                            self.push_handler(kw, content)
+                        self.last_push_time = time.time() * 1000
+                        break
+                else:
+                    # 单关键词模式
+                    if kw in line:
+                        if self.push_handler:
+                            self.push_handler(kw, content)
+                        self.last_push_time = time.time() * 1000
+                        break

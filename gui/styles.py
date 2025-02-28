@@ -30,6 +30,7 @@ class Styles:
         self._configure_button_styles()
         self._configure_text_styles()
         self._configure_frame_styles()
+        self._configure_menu_style()
         
         # 设置主窗口背景
         root.configure(bg=self.wx_bg)
@@ -55,7 +56,7 @@ class Styles:
         """配置按钮样式"""
         # 基础按钮
         self.style.configure('TButton', 
-            padding=(15, 8),
+            padding=(13, 7),
             font=('微软雅黑', 10),
             background=self.wx_green,
             foreground='white',
@@ -74,10 +75,37 @@ class Styles:
         self.style.map('Stop.TButton',
             background=[('active', '#ff7875'), ('disabled', '#E0E0E0')])
             
+        # 保存按钮
+        self.style.configure('Save.TButton',
+            background='#1890ff',
+            foreground='white')
+            
+        self.style.map('Save.TButton',
+            background=[('active', '#40a9ff'), ('disabled', '#E0E0E0')])
+            
         # 对话框按钮
         self.style.configure('Dialog.TButton',
             padding=(10, 5),
             font=('微软雅黑', 9))
+            
+        # 控制按钮
+        self.style.configure('Control.TButton',
+            padding=(20, 7),
+            font=('微软雅黑', 10),
+            background=self.wx_green,
+            foreground='white',
+            borderwidth=0,
+            relief='flat')
+            
+        self.style.map('Control.TButton',
+            background=[('active', self.wx_hover), ('disabled', '#E0E0E0')])
+            
+        # 继承Control.TButton的所有属性，只修改颜色
+        self.style.configure('Control.Stop.TButton', background='#ff4d4f')
+        self.style.map('Control.Stop.TButton', background=[('active', '#ff7875'), ('disabled', '#E0E0E0')])
+            
+        self.style.configure('Control.Save.TButton', background='#1890ff')
+        self.style.map('Control.Save.TButton', background=[('active', '#40a9ff'), ('disabled', '#E0E0E0')])
     
     def _configure_text_styles(self):
         """配置文本样式"""
@@ -131,3 +159,25 @@ class Styles:
         root.option_add('*TListbox*selectForeground', 'white')
         root.option_add('*TListbox*selectBackground', '#E7F7EE')
         root.option_add('*TListbox*selectForeground', '#07C160')
+        
+    def _configure_menu_style(self):
+        """配置左侧菜单样式"""
+        self.style.configure('Menu.TFrame',
+            background=self.wx_bg,
+            relief='flat')
+            
+        self.style.configure('Menu.TButton',
+            font=('微软雅黑', 10),
+            padding=(20, 12),
+            background=self.wx_bg,
+            foreground=self.wx_text,
+            borderwidth=0,
+            relief='flat')
+            
+        self.style.map('Menu.TButton',
+            background=[('active', 'white'), ('selected', 'white'), ('!selected', self.wx_bg)],
+            foreground=[('active', self.wx_green), ('selected', self.wx_green), ('!selected', self.wx_text)])
+            
+        self.style.configure('Content.TFrame',
+            background='white',
+            relief='flat')

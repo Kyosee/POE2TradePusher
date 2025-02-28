@@ -26,6 +26,7 @@ class MainWindow:
         # 初始化状态
         self.is_minimized = False
         self.monitoring = False
+        self.current_menu = None
         
         # 设置样式
         self.styles.setup(root)
@@ -51,62 +52,128 @@ class MainWindow:
         
     def create_widgets(self):
         """创建界面组件"""
+        # 创建主容器
+        self.main_container = ttk.Frame(self.root)
+        
+        # 创建左侧菜单区域
+        self.menu_frame = ttk.Frame(self.main_container, style='Menu.TFrame', width=200)
+        self.menu_frame.pack_propagate(False)  # 固定宽度
+        
+        # 创建菜单按钮
+        self.menu_buttons = []
+        menu_items = [
+            ('基本配置', self._show_basic_config),
+            ('推送管理', self._show_push_manage),
+            ('触发日志', self._show_log)
+        ]
+        
+        for text, command in menu_items:
+            btn = ttk.Button(self.menu_frame, text=text, style='Menu.TButton',
+                           command=command)
+            btn.pack(fill=X, pady=1)
+            self.menu_buttons.append(btn)
+            
+        # 添加弹性空间
+        ttk.Frame(self.menu_frame).pack(fill=Y, expand=True)
+        
+        # 控制按钮
+        control_frame = ttk.Frame(self.menu_frame, style='Menu.TFrame')
+        control_frame.pack(fill=X, pady=1)
+        
+        # 添加分隔线
+        separator = ttk.Separator(control_frame, orient='horizontal')
+        separator.pack(fill=X, pady=1)
+        
+        self.start_btn = ttk.Button(control_frame, text="▶️ 开始监控",
+                                   command=self.toggle_monitor,
+                                   style='Control.TButton')
+        self.start_btn.pack(fill=X, pady=(1, 0))
+        
+        self.save_btn = ttk.Button(control_frame, text="💾 保存设置",
+                                  command=self.save_config,
+                                  style='Control.Save.TButton')
+        self.save_btn.pack(fill=X, pady=(1, 1))
+        
+        # 创建右侧内容区域
+        self.content_frame = ttk.Frame(self.main_container, style='Content.TFrame')
+        
+        # 创建各功能页面
+        self.basic_config_frame = ttk.Frame(self.content_frame, style='Content.TFrame')
+        self.push_manage_frame = ttk.Frame(self.content_frame, style='Content.TFrame')
+        self.log_frame = ttk.Frame(self.content_frame, style='Content.TFrame')
+        
+        # 创建各页面内容
+        self._create_basic_config_page()
+        self._create_push_manage_page()
+        self._create_log_page()
+        
         # 状态栏
         self.status_bar = ttk.Label(self.root, text="就绪", style='Status.TLabel')
-        
-        # 创建各功能区域
-        self._create_file_section()
-        self._create_settings_section()
-        self._create_keyword_section()
-        self._create_wxpusher_section()
-        self._create_log_section()
-        self._create_control_section()
-        
-    def _create_file_section(self):
-        """创建文件配置区域"""
-        self.file_frame = ttk.LabelFrame(self.root, text="日志文件配置")
+                                  
+    def _create_basic_config_page(self):
+        """创建基本配置页面"""
+        # 创建文件配置区域
+        self.file_frame = ttk.LabelFrame(self.basic_config_frame, text="日志文件配置")
         ttk.Label(self.file_frame, text="日志路径:", style='Frame.TLabel').grid(row=0, column=0, padx=6)
         self.file_entry = ttk.Entry(self.file_frame, width=70)
         self.browse_btn = ttk.Button(self.file_frame, text="📂 浏览", command=self.select_file)
-    
-    def _create_settings_section(self):
-        """创建监控设置区域"""
-        self.settings_frame = ttk.LabelFrame(self.root, text="监控设置")
         
-        # 检测间隔
+        # 布局文件配置区域
+        self.file_frame.pack(fill=X, padx=12, pady=6)
+        self.file_entry.grid(row=0, column=1, padx=6, sticky="ew")
+        self.browse_btn.grid(row=0, column=2, padx=6)
+        self.file_frame.columnconfigure(1, weight=1)
+        
+        # 创建监控设置区域
+        self.settings_frame = ttk.LabelFrame(self.basic_config_frame, text="监控设置")
         ttk.Label(self.settings_frame, text="检测间隔(ms):", style='Frame.TLabel').grid(row=0, column=0, padx=6)
         self.interval_spin = ttk.Spinbox(self.settings_frame, from_=500, to=5000, 
                                        increment=100, width=8, font=('Consolas', 10))
         
-        # 推送间隔
         ttk.Label(self.settings_frame, text="推送间隔(ms):", style='Frame.TLabel').grid(row=0, column=2, padx=6)
         self.push_interval_entry = ttk.Entry(self.settings_frame, width=8, font=('Consolas', 10))
         
-        # 默认设置值
+        # 布局监控设置区域
+        self.settings_frame.pack(fill=X, padx=12, pady=6)
+        self.interval_spin.grid(row=0, column=1, padx=6)
+        self.push_interval_entry.grid(row=0, column=3, padx=6)
+        
+        # 设置默认值
         self.interval_spin.set(1000)
         self.push_interval_entry.insert(0, "0")
-    
-    def _create_keyword_section(self):
-        """创建关键词管理区域"""
-        self.keywords_frame = ttk.LabelFrame(self.root, text="关键词管理")
+        
+        # 创建关键词管理区域
+        self.keywords_frame = ttk.LabelFrame(self.basic_config_frame, text="关键词管理")
         
         # 输入框和按钮
-        self.keyword_entry = ttk.Entry(self.keywords_frame, font=('微软雅黑', 10))
-        self.add_btn = ttk.Button(self.keywords_frame, text="➕ 添加", command=self.add_keyword)
-        self.clear_kw_btn = ttk.Button(self.keywords_frame, text="🔄 清空", command=self.clear_keywords)
+        input_frame = ttk.Frame(self.keywords_frame)
+        self.keyword_entry = ttk.Entry(input_frame, font=('微软雅黑', 10))
+        self.add_btn = ttk.Button(input_frame, text="➕ 添加", command=self.add_keyword)
+        self.clear_kw_btn = ttk.Button(input_frame, text="🔄 清空", command=self.clear_keywords)
+        
+        # 布局输入区域
+        input_frame.pack(fill=X, padx=6, pady=3)
+        self.keyword_entry.pack(side=LEFT, fill=X, expand=True, padx=(0, 3))
+        self.add_btn.pack(side=LEFT, padx=3)
+        self.clear_kw_btn.pack(side=LEFT, padx=3)
         
         # 关键词列表
-        self.keyword_list = Listbox(self.keywords_frame, height=6, font=('微软雅黑', 10), 
-                                  selectmode=SINGLE, bg="white", 
+        self.keyword_list = Listbox(self.keywords_frame, height=8, font=('微软雅黑', 10),
+                                  selectmode=SINGLE, bg="white",
                                   relief='solid', borderwidth=1,
                                   activestyle='none')
-                                  
+        self.keyword_list.pack(fill=BOTH, expand=True, padx=6, pady=3)
+        
         # 设置关键词右键菜单
         self._setup_keyword_menu()
-    
-    def _create_wxpusher_section(self):
-        """创建WxPusher配置区域"""
-        self.wxpusher_frame = ttk.LabelFrame(self.root, text="WxPusher配置")
+        
+        # 布局关键词管理区域
+        self.keywords_frame.pack(fill=BOTH, expand=True, padx=12, pady=6)
+        
+    def _create_push_manage_page(self):
+        """创建推送管理页面"""
+        # 创建WxPusher配置区域
+        self.wxpusher_frame = ttk.LabelFrame(self.push_manage_frame, text="WxPusher配置")
         
         # AppToken
         ttk.Label(self.wxpusher_frame, text="App Token:", style='Frame.TLabel').grid(row=0, column=0, padx=6, sticky="w")
@@ -117,24 +184,27 @@ class MainWindow:
         self.uid_entry = ttk.Entry(self.wxpusher_frame, width=50, font=('Consolas', 10))
         
         # 添加测试按钮
-        self.test_btn = ttk.Button(self.wxpusher_frame, text="🔔 测试", command=self.test_wxpusher,
-                                  width=8)
-    
-    def _create_log_section(self):
-        """创建日志区域"""
-        self.log_frame = ttk.LabelFrame(self.root, text="触发日志")
+        self.test_btn = ttk.Button(self.wxpusher_frame, text="🔔 测试", command=self.test_wxpusher, width=8)
         
+        # 布局WxPusher配置区域
+        self.wxpusher_frame.pack(fill=BOTH, expand=True, padx=12, pady=6)
+        self.app_token_entry.grid(row=0, column=1, padx=6, sticky="ew")
+        self.uid_entry.grid(row=1, column=1, padx=6, sticky="ew")
+        self.test_btn.grid(row=0, column=2, rowspan=2, padx=6, sticky="ns")
+        self.wxpusher_frame.columnconfigure(1, weight=1)
+        
+    def _create_log_page(self):
+        """创建日志页面"""
         # 日志容器
         log_container = Frame(self.log_frame, bg="white", relief="solid", bd=1)
-        log_container.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
+        log_container.pack(fill=BOTH, expand=True, padx=12, pady=6)
         log_container.columnconfigure(0, weight=1)
-        log_container.columnconfigure(1, weight=0)
         log_container.rowconfigure(0, weight=1)
-
+        
         # 文本区域
         self.log_area = scrolledtext.ScrolledText(
-            log_container, 
-            wrap=WORD, 
+            log_container,
+            wrap=WORD,
             font=('微软雅黑', 9),
             bg="white",
             relief="flat",
@@ -146,100 +216,82 @@ class MainWindow:
         )
         self.log_area.grid(row=0, column=0, sticky="nsew", padx=(0, 2))
         self.log_area.configure(state='disabled')
-
+        
         # 滚动条
         scrollbar = Scrollbar(log_container, orient="vertical", command=self.log_area.yview)
         scrollbar.grid(row=0, column=0, sticky="nse")
         self.log_area.configure(yscrollcommand=scrollbar.set)
-
+        
         # 右侧按钮区域
         right_panel = Frame(log_container, bg="white", width=100)
         right_panel.grid(row=0, column=1, sticky="ns", padx=(2, 0))
         right_panel.grid_propagate(False)
-
+        
         # 添加按钮
         self.clear_log_btn = ttk.Button(
-            right_panel, text="清空", command=self.clear_log, 
-            style='TButton', width=9
+            right_panel, text="清空", command=self.clear_log,
+            style='Control.TButton', width=9
         )
         self.clear_log_btn.pack(side=TOP, padx=5, pady=5, fill=X)
-
+        
         self.export_log_btn = ttk.Button(
-            right_panel, text="导出", command=self.export_log, 
-            style='TButton', width=9
+            right_panel, text="导出", command=self.export_log,
+            style='Control.TButton', width=9
         )
         self.export_log_btn.pack(side=TOP, padx=5, pady=5, fill=X)
-    
-    def _create_control_section(self):
-        """创建控制按钮区域"""
-        self.control_frame = ttk.Frame(self.root)
         
-        # 主要控制按钮
-        self.start_btn = ttk.Button(self.control_frame, text="▶️ 开始监控", 
-                                   command=self.toggle_monitor)
-        self.save_btn = ttk.Button(self.control_frame, text="💾 保存设置",
-                                  command=self.save_config)
-                                  
     def setup_layout(self):
         """设置界面布局"""
-        # 状态栏布局
-        self.status_bar.grid(row=6, column=0, sticky='ew', padx=12, pady=4)
+        # 主容器布局
+        self.main_container.grid(row=0, column=0, sticky='nsew')
         
-        # 各区域布局
-        self._layout_file_section()
-        self._layout_settings_section() 
-        self._layout_keywords_section()
-        self._layout_wxpusher_section()
-        self._layout_log_section()
-        self._layout_control_section()
+        # 左侧菜单布局
+        self.menu_frame.pack(side=LEFT, fill=Y)
+        
+        # 右侧内容区域布局
+        self.content_frame.pack(side=LEFT, fill=BOTH, expand=True)
+        
+        # 状态栏布局
+        self.status_bar.grid(row=1, column=0, sticky='ew', padx=12, pady=4)
         
         # 主窗口布局权重配置
         self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(4, weight=3)  # 增大日志区域的权重
+        self.root.rowconfigure(0, weight=1)
         
-        # 配置区域内权重
-        self.file_frame.columnconfigure(1, weight=1)
-        self.keywords_frame.columnconfigure(0, weight=1)
-        self.wxpusher_frame.columnconfigure(1, weight=1)
+        # 默认显示基本配置页面
+        self._show_basic_config()
         
-    def _layout_file_section(self):
-        """布局文件配置区域"""
-        self.file_frame.grid(row=0, column=0, padx=12, pady=6, sticky="ew")
-        self.file_entry.grid(row=0, column=1, padx=6, sticky="ew")
-        self.browse_btn.grid(row=0, column=2, padx=6)
-    
-    def _layout_settings_section(self):
-        """布局监控设置区域"""
-        self.settings_frame.grid(row=1, column=0, padx=12, pady=6, sticky="ew")
-        self.interval_spin.grid(row=0, column=1, padx=6)
-        self.push_interval_entry.grid(row=0, column=3, padx=6)
-    
-    def _layout_keywords_section(self):
-        """布局关键词管理区域"""
-        self.keywords_frame.grid(row=2, column=0, padx=12, pady=6, sticky="ew")
-        self.keyword_entry.grid(row=0, column=0, padx=6, pady=3, sticky="ew")
-        self.add_btn.grid(row=0, column=1, padx=3)
-        self.clear_kw_btn.grid(row=0, column=2, padx=3)
-        self.keyword_list.grid(row=1, column=0, columnspan=3, padx=6, pady=3, sticky="ew")
-    
-    def _layout_wxpusher_section(self):
-        """布局WxPusher配置区域"""
-        self.wxpusher_frame.grid(row=3, column=0, padx=12, pady=6, sticky="ew")
-        self.app_token_entry.grid(row=0, column=1, padx=6, sticky="ew")
-        self.uid_entry.grid(row=1, column=1, padx=6, sticky="ew")
-        self.test_btn.grid(row=0, column=2, rowspan=2, padx=6, sticky="ns")
-    
-    def _layout_log_section(self):
-        """布局日志区域"""
-        self.log_frame.grid(row=4, column=0, padx=12, pady=6, sticky="nsew")
-        self.log_frame.columnconfigure(0, weight=1)
-        self.log_frame.rowconfigure(0, weight=1)
-    
-    def _layout_control_section(self):
-        """布局控制按钮区域"""
-        self.control_frame.grid(row=5, column=0, pady=12, sticky="ew")
-        self.start_btn.pack(side="left", padx=6)
-        self.save_btn.pack(side="right", padx=6)
+    def _show_basic_config(self):
+        """显示基本配置页面"""
+        self._hide_all_pages()
+        self.basic_config_frame.pack(fill=BOTH, expand=True)
+        self._update_menu_state(0)
+        
+    def _show_push_manage(self):
+        """显示推送管理页面"""
+        self._hide_all_pages()
+        self.push_manage_frame.pack(fill=BOTH, expand=True)
+        self._update_menu_state(1)
+        
+    def _show_log(self):
+        """显示日志页面"""
+        self._hide_all_pages()
+        self.log_frame.pack(fill=BOTH, expand=True)
+        self._update_menu_state(2)
+        
+    def _hide_all_pages(self):
+        """隐藏所有页面"""
+        self.basic_config_frame.pack_forget()
+        self.push_manage_frame.pack_forget()
+        self.log_frame.pack_forget()
+        
+    def _update_menu_state(self, selected_index):
+        """更新菜单按钮状态"""
+        for i, btn in enumerate(self.menu_buttons):
+            if i == selected_index:
+                btn.state(['selected'])
+            else:
+                btn.state(['!selected'])
         
     def setup_bindings(self):
         """设置事件绑定"""
@@ -250,7 +302,6 @@ class MainWindow:
         
         # 窗口事件绑定
         self.root.protocol('WM_DELETE_WINDOW', self.on_close)
-        self.root.bind('<Unmap>', self.on_minimize)
         
         # 设置回车键绑定
         self.keyword_entry.bind('<Return>', lambda e: self.add_keyword())
@@ -286,7 +337,7 @@ class MainWindow:
         self.keyword_menu.add_separator()
         self.keyword_menu.add_command(label="📋 复制", command=self.copy_keyword,
                                     font=('微软雅黑', 9))
-
+                                    
     def load_config(self):
         """加载配置"""
         success, msg = self.config.load()
@@ -373,8 +424,9 @@ class MainWindow:
             # 启动监控
             if self.monitor.start():
                 self.monitoring = True
-                self.start_btn.config(text="⏹ 停止监控", style='Stop.TButton')
-                self.status_bar.config(text="✅ 监控进行中...")
+                self.start_btn.config(text="⏹ 停止监控", style='Control.Stop.TButton')
+                encoding_info = self.monitor.file_utils.get_encoding_info()
+                self.status_bar.config(text=f"✅ 监控进行中... | 编码: {encoding_info}")
             
         except Exception as e:
             self.log_message(f"启动监控失败: {str(e)}", "ERROR")
@@ -385,7 +437,7 @@ class MainWindow:
         if self.monitor:
             self.monitor.stop()
         self.monitoring = False
-        self.start_btn.config(text="▶ 开始监控", style='TButton')
+        self.start_btn.config(text="▶ 开始监控", style='Control.TButton')
         self.status_bar.config(text="⏸️ 监控已停止")
         
     def _validate_settings(self):
@@ -566,12 +618,6 @@ class MainWindow:
         # 强制更新UI
         self.root.update_idletasks()
         
-    def on_minimize(self, event):
-        """处理窗口最小化事件"""
-        if not self.is_minimized:
-            self.root.withdraw()
-            self.is_minimized = True
-            
     def toggle_window(self):
         """切换窗口显示状态"""
         if self.is_minimized:
