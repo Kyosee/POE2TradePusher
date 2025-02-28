@@ -142,6 +142,34 @@ class MainWindow:
         self.interval_spin.set(1000)
         self.push_interval_entry.insert(0, "0")
         
+        # 创建游戏通货单位配置区域
+        self.currency_frame = ttk.LabelFrame(self.basic_config_frame, text="游戏通货单位")
+        
+        # 输入框和按钮
+        currency_input_frame = ttk.Frame(self.currency_frame)
+        self.currency_entry = ttk.Entry(currency_input_frame, font=('微软雅黑', 10))
+        self.add_currency_btn = ttk.Button(currency_input_frame, text="➕ 添加", command=self.add_currency)
+        self.clear_currency_btn = ttk.Button(currency_input_frame, text="🔄 清空", command=self.clear_currencies)
+        
+        # 布局输入区域
+        currency_input_frame.pack(fill=X, padx=6, pady=3)
+        self.currency_entry.pack(side=LEFT, fill=X, expand=True, padx=(0, 3))
+        self.add_currency_btn.pack(side=LEFT, padx=3)
+        self.clear_currency_btn.pack(side=LEFT, padx=3)
+        
+        # 通货单位列表
+        self.currency_list = Listbox(self.currency_frame, height=5, font=('微软雅黑', 10),
+                                   selectmode=SINGLE, bg="white",
+                                   relief='solid', borderwidth=1,
+                                   activestyle='none')
+        self.currency_list.pack(fill=BOTH, expand=True, padx=6, pady=3)
+        
+        # 设置通货单位右键菜单
+        self._setup_currency_menu()
+        
+        # 布局通货单位配置区域
+        self.currency_frame.pack(fill=X, padx=12, pady=6)
+        
         # 创建关键词管理区域
         self.keywords_frame = ttk.LabelFrame(self.basic_config_frame, text="关键词管理")
         
@@ -305,10 +333,15 @@ class MainWindow:
         
         # 设置回车键绑定
         self.keyword_entry.bind('<Return>', lambda e: self.add_keyword())
+        self.currency_entry.bind('<Return>', lambda e: self.add_currency())
         
         # 设置关键词列表事件
         self.keyword_list.bind('<Double-Button-1>', lambda e: self.edit_keyword())
         self.keyword_list.bind('<Button-3>', self.show_keyword_menu)
+        
+        # 设置通货单位列表事件
+        self.currency_list.bind('<Double-Button-1>', lambda e: self.edit_currency())
+        self.currency_list.bind('<Button-3>', self.show_currency_menu)
         
     def setup_tray(self):
         """初始化系统托盘"""
@@ -323,6 +356,21 @@ class MainWindow:
         if not success:
             self.log_message(msg, "ERROR")
             
+    def _setup_currency_menu(self):
+        """设置通货单位右键菜单"""
+        self.currency_menu = Menu(self.root, tearoff=0, font=('微软雅黑', 9))
+        self.currency_menu.configure(bg='white', activebackground='#E7F7EE',
+                                   activeforeground='#07C160', relief='flat')
+        
+        # 添加菜单项
+        self.currency_menu.add_command(label="✏️ 编辑", command=self.edit_currency,
+                                     font=('微软雅黑', 9))
+        self.currency_menu.add_command(label="❌ 删除", command=self.remove_selected_currency,
+                                     font=('微软雅黑', 9))
+        self.currency_menu.add_separator()
+        self.currency_menu.add_command(label="📋 复制", command=self.copy_currency,
+                                     font=('微软雅黑', 9))
+
     def _setup_keyword_menu(self):
         """设置关键词右键菜单"""
         self.keyword_menu = Menu(self.root, tearoff=0, font=('微软雅黑', 9))
@@ -352,6 +400,11 @@ class MainWindow:
         for kw in self.config.get('keywords', []):
             self.keyword_list.insert(END, kw)
             
+        # 应用通货单位
+        self.currency_list.delete(0, END)
+        for currency in self.config.get('currencies', []):
+            self.currency_list.insert(END, currency)
+            
         # 应用检测间隔
         self.interval_spin.set(self.config.get('interval', 1000))
         
@@ -370,6 +423,105 @@ class MainWindow:
         self.file_entry.delete(0, END)
         self.file_entry.insert(0, self.config.get('log_path', ''))
         
+    def add_currency(self):
+        """添加通货单位"""
+        currency = self.currency_entry.get().strip()
+        if not currency:
+            self.log_message("无法添加空通货单位", "WARN")
+            return
+        if currency in self.currency_list.get(0, END):
+            self.log_message(f"重复通货单位: {currency}", "WARN")
+            return
+        self.currency_list.insert(END, currency)
+        self.currency_entry.delete(0, END)
+        self.log_message(f"已添加通货单位: {currency}")
+        
+    def remove_selected_currency(self):
+        """删除选中的通货单位"""
+        selection = self.currency_list.curselection()
+        if selection:
+            currency = self.currency_list.get(selection[0])
+            self.currency_list.delete(selection[0])
+            self.log_message(f"已移除通货单位: {currency}")
+            
+    def clear_currencies(self):
+        """清空通货单位"""
+        if messagebox.askyesno("确认清空", "确定要清空所有通货单位吗？\n此操作无法撤销"):
+            self.currency_list.delete(0, END)
+            self.log_message("已清空通货单位列表")
+            self.status_bar.config(text="✨ 已清空通货单位列表")
+            
+    def edit_currency(self):
+        """编辑选中的通货单位"""
+        selection = self.currency_list.curselection()
+        if selection:
+            current_currency = self.currency_list.get(selection[0])
+            dialog = Toplevel(self.root)
+            dialog.title("编辑通货单位")
+            dialog.geometry("300x140")
+            dialog.transient(self.root)
+            dialog.grab_set()
+            dialog.configure(bg='white')
+            
+            # 设置对话框样式
+            main_frame = ttk.Frame(dialog, style='Dialog.TFrame')
+            main_frame.pack(expand=True, fill='both', padx=2, pady=2)
+            
+            ttk.Label(main_frame, text="请输入新的通货单位：",
+                     font=('微软雅黑', 9)).pack(padx=10, pady=(10, 5))
+            
+            entry = ttk.Entry(main_frame, width=40, font=('微软雅黑', 9))
+            entry.insert(0, current_currency)
+            entry.pack(padx=10, pady=(0, 10))
+            
+            def save_edit():
+                new_currency = entry.get().strip()
+                if new_currency and new_currency != current_currency:
+                    if new_currency not in self.currency_list.get(0, END):
+                        self.currency_list.delete(selection[0])
+                        self.currency_list.insert(selection[0], new_currency)
+                        self.log_message(f"通货单位已更新: {current_currency} → {new_currency}")
+                        dialog.destroy()
+                    else:
+                        messagebox.showwarning("提示", "通货单位已存在")
+                else:
+                    dialog.destroy()
+            
+            btn_frame = ttk.Frame(main_frame)
+            ttk.Button(btn_frame, text="✔️ 确定", command=save_edit, 
+                      style='Dialog.TButton').pack(side=LEFT, padx=5)
+            ttk.Button(btn_frame, text="❌ 取消", command=dialog.destroy, 
+                      style='Dialog.TButton').pack(side=LEFT, padx=5)
+            btn_frame.pack(pady=(0, 10))
+
+            # 居中对话框
+            dialog.update_idletasks()
+            width = dialog.winfo_width()
+            height = dialog.winfo_height()
+            x = (dialog.winfo_screenwidth() // 2) - (width // 2)
+            y = (dialog.winfo_screenheight() // 2) - (height // 2)
+            dialog.geometry(f'+{x}+{y}')
+            
+            entry.focus_set()
+            dialog.bind('<Return>', lambda e: save_edit())
+            dialog.bind('<Escape>', lambda e: dialog.destroy())
+            
+    def show_currency_menu(self, event):
+        """显示通货单位右键菜单"""
+        if self.currency_list.size() > 0:
+            selection = self.currency_list.curselection()
+            if selection:  # 只在选中项目时显示菜单
+                self.currency_menu.post(event.x_root, event.y_root)
+                
+    def copy_currency(self):
+        """复制选中的通货单位到剪贴板"""
+        selection = self.currency_list.curselection()
+        if selection:
+            currency = self.currency_list.get(selection[0])
+            self.root.clipboard_clear()
+            self.root.clipboard_append(currency)
+            self.status_bar.config(text=f"已复制: {currency}")
+            
     def save_config(self):
         """保存配置"""
         try:
@@ -379,6 +531,7 @@ class MainWindow:
                 'app_token': self.app_token_entry.get(),
                 'uid': self.uid_entry.get(),
                 'keywords': list(self.keyword_list.get(0, END)),
+                'currencies': list(self.currency_list.get(0, END)),
                 'log_path': self.file_entry.get()
             }
             
