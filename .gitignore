@@ -1,8 +1,10 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -19,30 +21,21 @@ wheels/
 .installed.cfg
 *.egg
 
-# PyInstaller
-*.spec
-release/
-
-# Logs and databases
-*.log
-*.sqlite
-
-# Environments
-.env
-.venv
-env/
+# Virtual Environment
 venv/
 ENV/
-env.bak/
-venv.bak/
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
+.project
+.pydevproject
+.settings/
 
-# Local config
-config/local.json
-DEVELOPER.md
-
+# Project specific
+config.json
+*.log
+release/
+assets/icon.ico
