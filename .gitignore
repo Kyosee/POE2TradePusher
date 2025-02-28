@@ -44,3 +44,5 @@ venv.bak/
 
 # Local config
 config/local.json
+DEVELOPER.md
+
