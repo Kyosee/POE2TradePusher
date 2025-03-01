@@ -84,7 +84,7 @@ class MainWindow:
         separator = ttk.Separator(control_frame, orient='horizontal')
         separator.pack(fill=tk.X, pady=1)
         
-        self.start_btn = ttk.Button(control_frame, text="▶️ 开始监控",
+        self.start_btn = ttk.Button(control_frame, text="▶ 开始监控",
                                    command=self.toggle_monitor,
                                    style='Control.TButton')
         self.start_btn.pack(fill=tk.X, pady=(1, 0))
