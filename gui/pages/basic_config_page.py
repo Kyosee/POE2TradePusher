@@ -11,6 +11,7 @@ class BasicConfigPage(ttk.Frame):
         self.save_config = callback_save
         
         # 创建各组件
+        self._create_game_frame()
         self._create_file_frame()
         self._create_settings_frame()
         self._create_keywords_frame()
@@ -422,6 +423,42 @@ class BasicConfigPage(ttk.Frame):
                 self.save_config()
                 
     # 获取/设置数据方法
+    def _create_game_frame(self):
+        """创建游戏窗口配置区域"""
+        self.game_frame = ttk.LabelFrame(self, text="游戏窗口配置")
+        ttk.Label(self.game_frame, text="窗口名称:", style='Frame.TLabel').grid(row=0, column=0, padx=6)
+        self.game_entry = ttk.Entry(self.game_frame, width=70)
+        self.game_entry.insert(0, "Path of Exile")
+        self.switch_btn = ttk.Button(self.game_frame, text="切换窗口", command=self._switch_to_game)
+        
+        # 布局游戏窗口配置区域
+        self.game_frame.pack(fill=X, padx=12, pady=6)
+        self.game_entry.grid(row=0, column=1, padx=6, sticky="ew")
+        self.switch_btn.grid(row=0, column=2, padx=6)
+        self.game_frame.columnconfigure(1, weight=1)
+        
+        # 绑定值变化事件
+        self.game_entry.bind('<KeyRelease>', lambda e: self._on_settings_change())
+
+    def _switch_to_game(self):
+        """切换到游戏窗口"""
+        window_name = self.game_entry.get().strip()
+        import win32gui
+        import win32con
+        
+        def callback(hwnd, _):
+            if win32gui.GetWindowText(hwnd) == window_name:
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                win32gui.SetForegroundWindow(hwnd)
+                return False
+            return True
+            
+        try:
+            win32gui.EnumWindows(callback, None)
+            self.log_message(f"已切换到游戏窗口: {window_name}")
+        except Exception as e:
+            self.log_message(f"切换窗口失败: {str(e)}", "ERROR")
+            
     def get_data(self):
         """获取页面数据"""
         keywords = []
@@ -440,6 +477,7 @@ class BasicConfigPage(ttk.Frame):
             })
             
         return {
+            'game_window': self.game_entry.get(),
             'log_path': self.file_entry.get(),
             'interval': int(self.interval_spin.get()),
             'push_interval': int(self.push_interval_entry.get() or 0),
@@ -448,6 +486,9 @@ class BasicConfigPage(ttk.Frame):
         
     def set_data(self, data):
         """设置页面数据"""
+        self.game_entry.delete(0, END)
+        self.game_entry.insert(0, data.get('game_window', 'Path of Exile'))
+        
         self.file_entry.delete(0, END)
         self.file_entry.insert(0, data.get('log_path', ''))
         
