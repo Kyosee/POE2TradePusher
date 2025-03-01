@@ -61,8 +61,8 @@ class MainWindow:
         self.menu_buttons = []
         menu_items = [
             ('基本配置', self._show_basic_config),
-            ('通货配置', self._show_currency_config),
             ('推送配置', self._show_push_manage),
+            ('通货配置', self._show_currency_config),
             ('数据统计', self._show_stats),
             ('触发日志', self._show_log)
         ]
@@ -141,17 +141,17 @@ class MainWindow:
         self._hide_all_pages()
         self.basic_config_page.pack(fill=tk.BOTH, expand=True)
         self._update_menu_state(0)
+                
+    def _show_push_manage(self):
+        """显示推送管理页面"""
+        self._hide_all_pages()
+        self.push_manage_page.pack(fill=tk.BOTH, expand=True)
+        self._update_menu_state(1)
 
     def _show_currency_config(self):
         """显示通货配置页面"""
         self._hide_all_pages()
         self.currency_config_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(1)
-        
-    def _show_push_manage(self):
-        """显示推送管理页面"""
-        self._hide_all_pages()
-        self.push_manage_page.pack(fill=tk.BOTH, expand=True)
         self._update_menu_state(2)
         
     def _show_stats(self):
@@ -329,6 +329,12 @@ class MainWindow:
         else:
             self.quit_app()
             
+    def get_currency_config(self):
+        """获取已配置的通货单位列表"""
+        if hasattr(self, 'currency_config_page'):
+            return self.currency_config_page.get_data().get('currencies', [])
+        return []
+
     def quit_app(self):
         """退出应用程序"""
         if self.monitoring:

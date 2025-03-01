@@ -66,13 +66,17 @@ class BasicConfigPage(ttk.Frame):
         self.keywords_frame = ttk.LabelFrame(self, text="关键词管理")
         
         # 输入框和按钮
-        input_frame = ttk.Frame(self.keywords_frame)
+        input_frame = ttk.Frame(self.keywords_frame, style='Frame.TLabel')
         
         # 模式选择下拉列表
         self.mode_var = StringVar(value="消息模式")
         self.mode_combo = ttk.Combobox(input_frame, textvariable=self.mode_var, 
                                      values=["消息模式", "交易模式"], 
-                                     state="readonly", width=10)
+                                     state="readonly", width=10,
+                                     font=('微软雅黑', 10))
+        self.mode_combo.configure(height=25)  # 调整下拉框高度
+        style = ttk.Style()
+        style.configure('Combobox', padding=6)  # 调整内边距
         self.mode_combo.bind('<<ComboboxSelected>>', lambda e: self.keyword_entry.focus())
         
         self.keyword_entry = ttk.Entry(input_frame, font=('微软雅黑', 10))
@@ -106,27 +110,32 @@ class BasicConfigPage(ttk.Frame):
         scrollbar.pack(side=RIGHT, fill=Y)
         self.keyword_list.configure(yscrollcommand=scrollbar.set)
         
+        # 布局关键词管理区域
+        self.keywords_frame.pack(fill=BOTH, expand=True, padx=12, pady=6)
+
         # 测试区域
-        test_frame = ttk.LabelFrame(self.keywords_frame, text="关键词测试")
-        test_frame.pack(fill=X, padx=6, pady=3)
+        test_frame = ttk.LabelFrame(self, text="关键词测试")
+        test_frame.pack(fill=X, padx=12, pady=6)
         
-        test_input_frame = ttk.Frame(test_frame)
-        test_input_frame.pack(fill=X, padx=6, pady=3)
+        test_input_frame = ttk.Frame(test_frame, style='Frame.TLabel')
+        test_input_frame.pack(fill=X, padx=6, pady=(6, 3))
         
-        self.test_text = Text(test_input_frame, height=3, width=50, 
-                            font=('微软雅黑', 10))
+        self.test_text = Text(test_input_frame, height=1,
+                            font=('微软雅黑', 9),
+                            relief='solid', borderwidth=1,
+                            bg='white', padx=8, pady=8)
         self.test_text.pack(side=LEFT, fill=X, expand=True, padx=(0, 3))
         
         test_btn = ttk.Button(test_input_frame, text="测试", 
                             command=self.test_keyword)
         test_btn.pack(side=LEFT, padx=3)
         
-        self.test_result = Text(test_frame, height=4, width=50, 
-                             font=('微软雅黑', 10), state='disabled')
-        self.test_result.pack(fill=X, padx=6, pady=3)
-        
-        # 布局关键词管理区域
-        self.keywords_frame.pack(fill=BOTH, expand=True, padx=12, pady=6)
+        self.test_result = Text(test_frame, height=4,
+                              font=('微软雅黑', 9),
+                              relief='solid', borderwidth=1,
+                              bg='white', padx=8, pady=8,
+                              state='disabled')
+        self.test_result.pack(fill=X, padx=6, pady=(3, 6))
         
         # 绑定事件
         self.keyword_list.bind('<Double-Button-1>', lambda e: self.edit_keyword())

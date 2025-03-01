@@ -1,6 +1,10 @@
 from tkinter import *
 from tkinter import ttk
 
+from PIL import Image, ImageTk
+import os
+import sys
+
 class StatsPage(ttk.Frame):
     def __init__(self, master, callback_log, callback_status, callback_save=None):
         super().__init__(master, style='Content.TFrame')
@@ -10,9 +14,19 @@ class StatsPage(ttk.Frame):
         
         self.currency_stats = {}  # 存储通货统计数据
         self.trade_message_count = 0  # 交易消息计数
+        self.configured_currencies = []  # 已配置的通货单位
         
         # 创建统计区域
         self._create_stats_frame()
+        
+        # 统计重置按钮（界面最右上角）
+        self.clear_btn = ttk.Button(self, text="统计重置", 
+                                  command=self.clear_stats,
+                                  style='Control.Stop.TButton')
+        self.clear_btn.place(relx=1.0, rely=0, anchor=NE, x=-12, y=12)
+        
+        # 初始化显示
+        self.refresh_stats_display()
         
     def _create_stats_frame(self):
         """创建统计区域"""
@@ -58,10 +72,6 @@ class StatsPage(ttk.Frame):
         self.canvas.bind("<Enter>", lambda e: self.canvas.bind_all("<MouseWheel>", self._on_mousewheel))
         self.canvas.bind("<Leave>", lambda e: self.canvas.unbind_all("<MouseWheel>"))
         
-        # 清除数据按钮
-        clear_btn = ttk.Button(self, text="清除数据", command=self.clear_stats)
-        clear_btn.pack(pady=6)
-        
     def _on_frame_configure(self, event=None):
         """处理内部frame大小变化"""
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
@@ -94,34 +104,72 @@ class StatsPage(ttk.Frame):
         self.trade_message_count = 0
         self.message_count_label.config(text="0")
         
-        # 清除现有的通货统计显示
-        for widget in self.currency_frame_inner.winfo_children():
-            widget.destroy()
+        # 刷新显示（会显示所有已配置的通货单位，计数为0）
+        self.refresh_stats_display()
         
         self.log_message("已清除统计数据")
-        self.status_bar.config(text="✨ 已清除统计数据")
+        if callable(self.status_bar):
+            self.status_bar("✨ 已清除统计数据")
         
         # 保存配置
         if self.save_config:
             self.save_config()
             
+    def _get_resource_path(self, filename):
+        """获取资源文件路径"""
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.abspath(".")
+        return os.path.join(base_path, "assets", "orb", filename)
+
     def refresh_stats_display(self):
         """刷新统计显示"""
         # 清除现有显示
         for widget in self.currency_frame_inner.winfo_children():
             widget.destroy()
             
+        # 获取最新的配置通货单位和统计数据
+        if hasattr(self.master, 'get_currency_config'):
+            self.configured_currencies = self.master.get_currency_config()
+        
+        # 获取所有需要显示的通货
+        currencies = set(self.currency_stats.keys())
+        currencies.update(self.configured_currencies)
+        
         # 重新创建显示项
-        for currency, count in self.currency_stats.items():
+        for currency in sorted(currencies):
             frame = ttk.Frame(self.currency_frame_inner, style='Currency.TFrame', height=34)
             frame.pack(fill=X, padx=6, pady=(0, 1))
             frame.pack_propagate(False)
             
+            # 通货图标容器
+            img_frame = ttk.Frame(frame, width=30, height=30)
+            img_frame.pack(side=LEFT, padx=1)
+            img_frame.pack_propagate(False)
+            
+            # 通货图标
+            img_label = Label(img_frame, width=30, height=30)
+            img_path = self._get_resource_path(f"{currency.lower()}.png")
+            
+            try:
+                if os.path.exists(img_path):
+                    img = Image.open(img_path)
+                    img = img.resize((30, 30), Image.Resampling.LANCZOS)
+                    photo = ImageTk.PhotoImage(img)
+                    img_label.configure(image=photo)
+                    img_label.image = photo
+            except Exception as e:
+                self.log_message(f"加载图片失败: {e}", "ERROR")
+                
+            img_label.pack(side=LEFT, padx=2)
+            
             # 通货名称
             ttk.Label(frame, text=currency,
-                     font=('微软雅黑', 10)).pack(side=LEFT, padx=6)
+                     font=('微软雅黑', 10)).pack(side=LEFT, fill=X, expand=True, padx=2)
             
             # 计数（右对齐）
+            count = self.currency_stats.get(currency, 0)
             ttk.Label(frame, text=f"{count:.1f}",
                      font=('微软雅黑', 10, 'bold')).pack(side=RIGHT, padx=6)
             
@@ -137,6 +185,10 @@ class StatsPage(ttk.Frame):
         self.currency_stats = data.get('currency_stats', {})
         self.trade_message_count = data.get('trade_message_count', 0)
         
+        # 重新获取已配置的通货单位
+        if hasattr(self.master, 'get_currency_config'):
+            self.configured_currencies = self.master.get_currency_config()
+            
         # 更新显示
         self.message_count_label.config(text=str(self.trade_message_count))
         self.refresh_stats_display()

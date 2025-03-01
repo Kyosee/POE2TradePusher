@@ -52,7 +52,7 @@ class LogMonitor:
                     if not success:
                         self.log_callback(msg, "ERROR")
                         return False
-                    self.log_callback(msg, "INFO")
+                    self.log_callback(msg, "FILE")
                 
                 self.last_position = os.path.getsize(file_path)
                 self.last_timestamp = self.file_utils.get_last_timestamp(file_path)
@@ -65,7 +65,7 @@ class LogMonitor:
             self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
             self.monitor_thread.start()
             
-            self.log_callback("监控已启动", "INFO")
+            self.log_callback("监控已启动", "SYSTEM")
             return True
             
         except Exception as e:
@@ -77,7 +77,7 @@ class LogMonitor:
         """停止监控"""
         self.monitoring = False
         self.stop_event.set()
-        self.log_callback("监控已停止", "INFO")
+        self.log_callback("监控已停止", "SYSTEM")
         
     def _validate_settings(self):
         """验证设置完整性"""
@@ -98,7 +98,7 @@ class LogMonitor:
         """监控日志文件循环"""
         interval = self.config.get('interval', 1000)
         push_interval = self.config.get('push_interval', 0)
-        self.log_callback(f"检测间隔: {interval}ms, 推送间隔: {push_interval}ms", "INFO")
+        self.log_callback(f"检测间隔: {interval}ms, 推送间隔: {push_interval}ms", "SYSTEM")
         
         while self.monitoring and not self.stop_event.is_set():
             try:
@@ -124,7 +124,7 @@ class LogMonitor:
         
         # 处理文件截断
         if current_size < self.last_position:
-            self.log_callback("检测到文件被截断，重置读取位置", "WARN")
+            self.log_callback("检测到文件被截断，重置读取位置", "FILE")
             self.last_position = 0
             self.last_timestamp = None
 
@@ -139,7 +139,7 @@ class LogMonitor:
                 try:
                     decoded = self.file_utils.decode_content(content)
                 except UnicodeDecodeError as ude:
-                    self.log_callback(f"解码失败: {str(ude)}，尝试重新检测编码...", "WARN")
+                    self.log_callback(f"解码失败: {str(ude)}，尝试重新检测编码...", "FILE")
                     success, _, msg = self.file_utils.detect_encoding(file_path)
                     if success:
                         decoded = self.file_utils.decode_content(content)
@@ -186,7 +186,7 @@ class LogMonitor:
 
         # 处理有效日志
         if valid_lines:
-            self.log_callback(f"发现 {len(valid_lines)} 条新日志", "INFO")
+            self.log_callback(f"发现 {len(valid_lines)} 条新日志", "FILE")
             self._process_lines(valid_lines)
             
     def _process_lines(self, lines):
@@ -209,6 +209,14 @@ class LogMonitor:
             for kw in self.config.get('keywords', []):
                 if isinstance(kw, str):  # 旧版格式兼容
                     if self._match_message_mode(kw, content):
+                        # 记录旧版消息模式匹配日志
+                        log_msg = (
+                            f"[消息]关键词触发\n"
+                            f"触发内容: {content}\n"
+                            f"触发关键词: {kw}"
+                        )
+                        self.log_callback(log_msg, "INFO")
+                        
                         if self.push_handler:
                             self.push_handler(kw, content)
                         self.last_push_time = time.time() * 1000
@@ -217,33 +225,54 @@ class LogMonitor:
                     mode = kw.get('mode', '消息模式')
                     pattern = kw.get('pattern', '')
                     
-                    if mode == '消息模式':
-                        if self._match_message_mode(pattern, content):
-                            if self.push_handler:
-                                self.push_handler(pattern, content)
-                            self.last_push_time = time.time() * 1000
-                            break
-                    else:  # 交易模式
-                        match_result = self._match_trade_mode(pattern, content)
-                        if match_result:
-                            if self.push_handler:
-                                self.push_handler(pattern, content)
-                            self.last_push_time = time.time() * 1000
-                            
-                            # 更新交易统计
-                            if self.stats_page:
-                                self.stats_page.increment_message_count()
-                            
-                            # 提取通货数量和单位
-                            currency = match_result.get('currency')
-                            try:
-                                amount = float(match_result.get('price', 0))
-                                if currency and amount > 0:
-                                    if self.stats_page:
-                                        self.stats_page.update_currency_stats(currency, amount)
-                            except ValueError:
-                                pass  # 忽略无法转换为数字的价格
-                            break
+                    # 消息模式匹配
+                    if self._match_message_mode(pattern, content):
+                        # 记录消息模式匹配日志
+                        log_msg = (
+                            f"[消息模式]关键词触发\n"
+                            f"触发内容: {content}\n"
+                            f"触发模板: {pattern}"
+                        )
+                        self.log_callback(log_msg, "INFO")
+                        
+                        if self.push_handler:
+                            self.push_handler(pattern, content)
+                        self.last_push_time = time.time() * 1000
+                        break
+                    
+                    # 交易模式匹配
+                    match_result = self._match_trade_mode(pattern, content)
+                    if match_result:
+                        # 记录交易模式匹配日志
+                        log_msg = (
+                            f"[交易模式]关键词触发\n"
+                            f"触发内容: {content}\n"
+                            f"触发模板: {pattern}\n"
+                            f"解析信息:\n" + 
+                            "\n".join(f"  {k}: {v}" for k, v in match_result.items())
+                        )
+                        self.log_callback(log_msg, "TRADE")
+                        
+                        if self.push_handler:
+                            self.push_handler(pattern, content)
+                        self.last_push_time = time.time() * 1000
+                        
+                        # 更新交易统计
+                        if self.stats_page:
+                            self.stats_page.increment_message_count()
+                            self.log_callback(f"交易计数已更新", "SYSTEM")
+                        
+                        # 提取通货数量和单位
+                        currency = match_result.get('currency')
+                        try:
+                            amount = float(match_result.get('price', 0))
+                            if currency and amount > 0:
+                                if self.stats_page:
+                                    self.stats_page.update_currency_stats(currency, amount)
+                                    self.log_callback(f"更新通货统计: {currency} {amount}", "PRICE")
+                        except ValueError:
+                            self.log_callback(f"无效的价格数据: {match_result.get('price')}", "ERROR")
+                        break
                             
     def _match_message_mode(self, pattern, content):
         """消息模式匹配"""
@@ -259,7 +288,8 @@ class LogMonitor:
         """交易模式匹配，返回提取的变量值"""
         # 转换模板为正则表达式
         template = pattern.replace('*', '.*?')
-        
+        template = template.replace('(', '\(')
+        template = template.replace(')', '\)')
         # 定义占位符列表
         placeholders = [
             '@user', '@item', '@price', '@currency', '@mode',
