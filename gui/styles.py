@@ -6,7 +6,7 @@ class Styles:
     def __init__(self):
         # 界面主题颜色
         self.wx_green = '#07C160'
-        self.wx_bg = '#F7F7F7'
+        self.wx_bg = '#f0f0f0'
         self.wx_hover = '#06AD56'
         self.wx_text = '#2C2C2C'
         self.wx_border = '#E6E7E8'

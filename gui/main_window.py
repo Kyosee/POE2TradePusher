@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from .styles import Styles
 from .tray_icon import TrayIcon
-from .pages import BasicConfigPage, PushManagePage, LogPage, CurrencyConfigPage
+from .pages import BasicConfigPage, PushManagePage, LogPage, CurrencyConfigPage, TradeTemplatePage
 from core.config import Config
 from core.log_monitor import LogMonitor
 from push.wxpusher import WxPusher
@@ -62,8 +62,9 @@ class MainWindow:
         menu_items = [
             ('基本配置', self._show_basic_config),
             ('通货配置', self._show_currency_config),
-            ('推送管理', self._show_push_manage),
-            ('触发日志', self._show_log)
+            ('推送配置', self._show_push_manage),
+            ('触发日志', self._show_log),
+            ('交易模板', self._show_trade_template)
         ]
         
         for text, command in menu_items:
@@ -107,6 +108,9 @@ class MainWindow:
                                              lambda text: self.status_bar.config(text=text))
         self.log_page = LogPage(self.content_frame, self.log_message, 
                               lambda text: self.status_bar.config(text=text))
+        self.trade_template_page = TradeTemplatePage(self.content_frame, self.log_message,
+                                                   lambda text: self.status_bar.config(text=text),
+                                                   self.save_config)
         
         # 创建状态栏
         self.status_bar = ttk.Label(self.root, text="就绪", style='Status.TLabel')
@@ -156,12 +160,19 @@ class MainWindow:
         self.log_page.pack(fill=tk.BOTH, expand=True)
         self._update_menu_state(3)
         
+    def _show_trade_template(self):
+        """显示交易模板页面"""
+        self._hide_all_pages()
+        self.trade_template_page.pack(fill=tk.BOTH, expand=True)
+        self._update_menu_state(4)
+        
     def _hide_all_pages(self):
         """隐藏所有页面"""
         self.basic_config_page.pack_forget()
         self.currency_config_page.pack_forget()
         self.push_manage_page.pack_forget()
         self.log_page.pack_forget()
+        self.trade_template_page.pack_forget()
         
     def _update_menu_state(self, selected_index):
         """更新菜单按钮状态"""
@@ -203,6 +214,7 @@ class MainWindow:
             self.basic_config_page.set_data(self.config.config)
             self.currency_config_page.set_data(self.config.config)
             self.push_manage_page.set_data(self.config.config)
+            self.trade_template_page.set_data(self.config.config)
         
     def save_config(self):
         """保存配置"""
@@ -211,9 +223,10 @@ class MainWindow:
             basic_config = self.basic_config_page.get_data()
             currency_config = self.currency_config_page.get_data()
             push_config = self.push_manage_page.get_data()
+            template_config = self.trade_template_page.get_data()
             
             # 合并配置数据
-            config = {**basic_config, **currency_config, **push_config}
+            config = {**basic_config, **currency_config, **push_config, **template_config}
             
             # 更新并保存配置
             self.config.update(config)

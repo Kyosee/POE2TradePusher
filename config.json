@@ -11,5 +11,8 @@
   "currencies": [
     "divine",
     "chance"
+  ],
+  "templates": [
+    "來自 {@user}: 你好，我想購買 {@item} 標價 {@price} {@currency} 在 {@mode} (倉庫頁 \"{@tab}\"; 位置: {@p1} {@p1_num}, {@p2} {@p2_num})"
   ]
 }
