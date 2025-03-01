@@ -7,7 +7,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('assets/icon.ico', 'assets'),
+        ('assets', 'assets'),  # 包含整个assets目录
         ('config.json.template', '.'),
     ],
     hiddenimports=[],
