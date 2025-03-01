@@ -14,6 +14,10 @@ class CurrencyConfigPage(ttk.Frame):
         self.currency_items = []  # 存储通货单位项的引用
         self.selected_currency_item = None
         
+        # 创建通货单位配置框架
+        self.currency_label_frame = ttk.LabelFrame(self, text="通货单位配置")
+        self.currency_label_frame.pack(fill=BOTH, expand=True, padx=6, pady=3)
+        
         # 创建样式
         style = ttk.Style()
         style.configure('Currency.TFrame', background='white')
@@ -109,20 +113,20 @@ class CurrencyConfigPage(ttk.Frame):
     def _create_currency_frame(self):
         """创建通货单位配置区域"""
         # 输入框和按钮
-        input_frame = ttk.Frame(self)
+        input_frame = ttk.Frame(self.currency_label_frame)
         self.currency_entry = ttk.Entry(input_frame, font=('微软雅黑', 10))
         self.add_currency_btn = ttk.Button(input_frame, text="➕ 添加", command=self.add_currency)
         self.clear_currency_btn = ttk.Button(input_frame, text="🔄 清空", command=self.clear_currencies)
         
         # 布局输入区域
-        input_frame.pack(fill=X, padx=12, pady=6)
+        input_frame.pack(fill=X, padx=6, pady=3)
         self.currency_entry.pack(side=LEFT, fill=X, expand=True, padx=(0, 3))
         self.add_currency_btn.pack(side=LEFT, padx=3)
         self.clear_currency_btn.pack(side=LEFT, padx=3)
         
         # 通货单位列表容器
-        self.currency_container = ttk.Frame(self)
-        self.currency_container.pack(fill=BOTH, expand=True, padx=12, pady=6)
+        self.currency_container = ttk.Frame(self.currency_label_frame)
+        self.currency_container.pack(fill=BOTH, expand=True, padx=6, pady=3)
         
         # 创建滚动条和画布
         self.currency_canvas = Canvas(self.currency_container, bg="white", 

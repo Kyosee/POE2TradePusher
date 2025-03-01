@@ -2,15 +2,17 @@ import os
 import time
 import threading
 import traceback
+import re
 from datetime import datetime
 from .file_utils import FileUtils
 
 class LogMonitor:
     """日志监控核心类"""
-    def __init__(self, config, push_handler=None, log_callback=None):
+    def __init__(self, config, push_handler=None, log_callback=None, stats_page=None):
         self.config = config
         self.push_handler = push_handler
         self.log_callback = log_callback or (lambda msg, level: None)
+        self.stats_page = stats_page
         
         # 文件监控相关参数
         self.file_utils = FileUtils(self.log_callback)
@@ -20,6 +22,16 @@ class LogMonitor:
         self.stop_event = threading.Event()
         self.last_push_time = 0
         self.buffer_size = 8192
+        
+        # 交易统计数据
+        self.trade_stats = {
+            'total_trades': 0,  # 总交易消息数
+            'currency_stats': {}  # 通货统计 {currency: total_amount}
+        }
+        
+    def get_trade_stats(self):
+        """获取交易统计数据"""
+        return self.trade_stats
         
     def start(self):
         """开始监控"""
@@ -195,18 +207,71 @@ class LogMonitor:
             
             # 关键词匹配（支持多关键词组合）
             for kw in self.config.get('keywords', []):
-                if '|' in kw:
-                    # 多关键词组合模式
-                    keywords = [k.strip() for k in kw.split('|')]
-                    if all(keyword in line for keyword in keywords):
+                if isinstance(kw, str):  # 旧版格式兼容
+                    if self._match_message_mode(kw, content):
                         if self.push_handler:
                             self.push_handler(kw, content)
                         self.last_push_time = time.time() * 1000
                         break
-                else:
-                    # 单关键词模式
-                    if kw in line:
-                        if self.push_handler:
-                            self.push_handler(kw, content)
-                        self.last_push_time = time.time() * 1000
-                        break
+                else:  # 新版格式
+                    mode = kw.get('mode', '消息模式')
+                    pattern = kw.get('pattern', '')
+                    
+                    if mode == '消息模式':
+                        if self._match_message_mode(pattern, content):
+                            if self.push_handler:
+                                self.push_handler(pattern, content)
+                            self.last_push_time = time.time() * 1000
+                            break
+                    else:  # 交易模式
+                        match_result = self._match_trade_mode(pattern, content)
+                        if match_result:
+                            if self.push_handler:
+                                self.push_handler(pattern, content)
+                            self.last_push_time = time.time() * 1000
+                            
+                            # 更新交易统计
+                            if self.stats_page:
+                                self.stats_page.increment_message_count()
+                            
+                            # 提取通货数量和单位
+                            currency = match_result.get('currency')
+                            try:
+                                amount = float(match_result.get('price', 0))
+                                if currency and amount > 0:
+                                    if self.stats_page:
+                                        self.stats_page.update_currency_stats(currency, amount)
+                            except ValueError:
+                                pass  # 忽略无法转换为数字的价格
+                            break
+                            
+    def _match_message_mode(self, pattern, content):
+        """消息模式匹配"""
+        if '|' in pattern:
+            # 多关键词组合模式
+            keywords = [k.strip() for k in pattern.split('|')]
+            return all(keyword in content for keyword in keywords)
+        else:
+            # 单关键词模式
+            return pattern in content
+            
+    def _match_trade_mode(self, pattern, content):
+        """交易模式匹配，返回提取的变量值"""
+        # 转换模板为正则表达式
+        template = pattern.replace('*', '.*?')
+        
+        # 定义占位符列表
+        placeholders = [
+            '@user', '@item', '@price', '@currency', '@mode',
+            '@tab', '@p1', '@p1_num', '@p2', '@p2_num'
+        ]
+        
+        # 替换占位符为命名捕获组
+        for ph in placeholders:
+            template = template.replace('{' + ph + '}', f'(?P<{ph[1:]}>[^{{}}]+)')
+            
+        # 执行匹配
+        match = re.match(template, content)
+        if match:
+            return match.groupdict()
+        return None
