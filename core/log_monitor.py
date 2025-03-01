@@ -8,9 +8,9 @@ from .file_utils import FileUtils
 
 class LogMonitor:
     """日志监控核心类"""
-    def __init__(self, config, push_handler=None, log_callback=None, stats_page=None):
+    def __init__(self, config, log_callback=None, stats_page=None):
         self.config = config
-        self.push_handler = push_handler
+        self.push_handlers = []  # 推送处理器列表
         self.log_callback = log_callback or (lambda msg, level: None)
         self.stats_page = stats_page
         
@@ -79,11 +79,28 @@ class LogMonitor:
         self.stop_event.set()
         self.log_callback("监控已停止", "SYSTEM")
         
+    def add_push_handler(self, handler):
+        """添加推送处理器"""
+        if handler:
+            self.push_handlers.append(handler)
+            self.log_callback("已添加推送处理器", "SYSTEM")
+            
+    def _send_push_message(self, title, content):
+        """发送推送消息到所有处理器"""
+        success = False
+        for handler in self.push_handlers:
+            try:
+                result, _ = handler.send(title, content)
+                success = success or result
+            except Exception as e:
+                self.log_callback(f"推送消息失败: {str(e)}", "ERROR")
+        return success
+            
     def _validate_settings(self):
         """验证设置完整性"""
         required = [
             (self.config.get('log_path'), "请选择日志文件"),
-            (self.push_handler is not None, "未配置推送处理器"),
+            (len(self.push_handlers) > 0, "未配置推送处理器"),
             (len(self.config.get('keywords', [])) > 0, "请至少添加一个关键词")
         ]
         
@@ -217,8 +234,7 @@ class LogMonitor:
                         )
                         self.log_callback(log_msg, "INFO")
                         
-                        if self.push_handler:
-                            self.push_handler(kw, content)
+                        self._send_push_message(kw, content)
                         self.last_push_time = time.time() * 1000
                         break
                 else:  # 新版格式
@@ -235,8 +251,7 @@ class LogMonitor:
                         )
                         self.log_callback(log_msg, "INFO")
                         
-                        if self.push_handler:
-                            self.push_handler(pattern, content)
+                        self._send_push_message(pattern, content)
                         self.last_push_time = time.time() * 1000
                         break
                     
@@ -253,8 +268,7 @@ class LogMonitor:
                         )
                         self.log_callback(log_msg, "TRADE")
                         
-                        if self.push_handler:
-                            self.push_handler(pattern, content)
+                        self._send_push_message(pattern, content)
                         self.last_push_time = time.time() * 1000
                         
                         # 更新交易统计

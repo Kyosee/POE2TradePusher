@@ -11,6 +11,11 @@ class Styles:
         self.wx_text = '#2C2C2C'
         self.wx_border = '#E6E7E8'
         
+        # iOS Switch颜色
+        self.switch_off = '#e9e9ea'      # 关闭状态背景色
+        self.switch_thumb = '#ffffff'     # 滑块颜色
+        self.switch_shadow = '#00000026'  # 滑块阴影颜色
+        
         # 日志颜色映射
         self.log_colors = {
             "INFO": "#333333",
@@ -118,7 +123,8 @@ class Styles:
         self.style.configure('Frame.TLabel',
             font=('微软雅黑', 10),
             foreground=self.wx_text,
-            background='white')
+            background='white',
+            padding=(0, 0, 12, 0))  # 右侧添加12像素间距
             
         # 状态栏
         self.style.configure('Status.TLabel', 
@@ -133,6 +139,36 @@ class Styles:
             borderwidth=1,
             relief='solid',
             padding=5)
+            
+        # iOS7风格Switch开关
+        self.style.configure('Switch.TCheckbutton',
+            background='white',
+            foreground=self.wx_text,
+            font=('微软雅黑', 10),
+            indicatorsize=28,          # 开关大小
+            indicatormargin=2,         # 滑块边距
+            padding=(0, 4),            # 整体内边距
+            relief='flat',             # 扁平风格
+            borderwidth=0)             # 无边框
+            
+        self.style.map('Switch.TCheckbutton',
+            background=[('active', 'white'), ('selected', 'white')],
+            foreground=[('active', self.wx_text), ('selected', self.wx_text)],
+            indicatorcolor=[           # 开关背景颜色
+                ('!selected', self.switch_off), 
+                ('selected', self.wx_green),
+                ('active !selected', self.switch_off),
+                ('active selected', self.wx_green)
+            ],
+            indicatorrelief=[('!selected', 'round'), ('selected', 'round')],  # 圆角效果
+            indicatorbackground=[      # 滑块颜色
+                ('!selected', self.switch_thumb),
+                ('selected', self.switch_thumb),
+                ('pressed !selected', self.switch_thumb),
+                ('pressed selected', self.switch_thumb),
+                ('active !selected', self.switch_thumb),
+                ('active selected', self.switch_thumb)
+            ])
     
     def _configure_frame_styles(self):
         """配置框架样式"""

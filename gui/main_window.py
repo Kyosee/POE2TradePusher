@@ -6,6 +6,7 @@ from .pages import BasicConfigPage, PushManagePage, LogPage, CurrencyConfigPage,
 from core.config import Config
 from core.log_monitor import LogMonitor
 from push.wxpusher import WxPusher
+from push.email_pusher import EmailPusher
 
 class MainWindow:
     """主窗口类"""
@@ -40,13 +41,12 @@ class MainWindow:
         # 加载配置
         self.load_config()
         
-        # 初始化推送器和监控器
-        self.push_handler = None
+        # 初始化监控器
         self.monitor = None
         
         # 添加初始提示信息
         self.log_message("应用程序已启动，等待配置...", "INFO")
-        self.log_message("请设置日志路径、WxPusher信息和关键词", "INFO")
+        self.log_message("请配置日志路径和至少一种推送方式", "INFO")
         
     def create_widgets(self):
         """创建界面组件"""
@@ -252,21 +252,38 @@ class MainWindow:
             return
             
         try:
-            # 初始化推送器
-            self.push_handler = WxPusher(self.config, self.log_message)
-            success, msg = self.push_handler.validate_config()
-            if not success:
-                self.log_message(msg, "ERROR")
-                return
-                
-            # 初始化监控器
-            self.monitor = LogMonitor(
-                self.config,
-                lambda kw, content: self.push_handler.send(kw, content),
-                self.log_message,
-                self.stats_page
-            )
+            # 创建并初始化监控器
+            self.monitor = LogMonitor(self.config, self.log_message, self.stats_page)
             
+            # 根据配置创建并添加推送处理器
+            push_data = self.push_manage_page.get_data()
+            handlers_added = 0
+            
+            # 添加WxPusher处理器
+            if push_data.get('wxpusher', {}).get('enabled'):
+                wxpusher = WxPusher(self.config, self.log_message)
+                success, msg = wxpusher.validate_config()
+                if success:
+                    self.monitor.add_push_handler(wxpusher)
+                    handlers_added += 1
+                else:
+                    self.log_message(msg, "ERROR")
+                    
+            # 添加Email处理器
+            if push_data.get('email', {}).get('enabled'):
+                emailer = EmailPusher(self.config, self.log_message)
+                success, msg = emailer.validate_config()
+                if success:
+                    self.monitor.add_push_handler(emailer)
+                    handlers_added += 1
+                else:
+                    self.log_message(msg, "ERROR")
+            
+            # 验证是否成功添加了推送处理器
+            if handlers_added == 0:
+                self.log_message("没有可用的推送处理器", "ERROR")
+                return
+                    
             # 启动监控
             if self.monitor.start():
                 self.monitoring = True
@@ -291,19 +308,26 @@ class MainWindow:
         basic_data = self.basic_config_page.get_data()
         push_data = self.push_manage_page.get_data()
         
-        required = [
-            (basic_data.get('log_path'), "请选择日志文件"),
-            (push_data.get('app_token'), "请输入App Token"),
-            (push_data.get('uid'), "请输入用户UID"),
-            (basic_data.get('keywords', []), "请至少添加一个关键词")
-        ]
+        # 验证基本设置
+        if not basic_data.get('log_path'):
+            self.log_page.append_log("请选择日志文件", "ERROR")
+            messagebox.showerror("设置不完整", "请选择日志文件")
+            return False
+            
+        if not basic_data.get('keywords', []):
+            self.log_page.append_log("请至少添加一个关键词", "ERROR")
+            messagebox.showerror("设置不完整", "请至少添加一个关键词")
+            return False
+            
+        # 验证是否启用了至少一种推送方式
+        wxpusher_enabled = push_data.get('wxpusher', {}).get('enabled', False)
+        email_enabled = push_data.get('email', {}).get('enabled', False)
         
-        for value, msg in required:
-            if not value:
-                self.log_page.append_log(msg, "ERROR")
-                messagebox.showerror("设置不完整", msg)
-                return False
-                
+        if not wxpusher_enabled and not email_enabled:
+            self.log_page.append_log("请至少启用一种推送方式", "ERROR")
+            messagebox.showerror("设置不完整", "请至少启用一种推送方式")
+            return False
+        
         return True
         
     def log_message(self, message, level="INFO"):
