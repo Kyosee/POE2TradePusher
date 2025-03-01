@@ -39,3 +39,5 @@ config.json
 *.log
 release/
 assets/icon.ico
+
+config.json
