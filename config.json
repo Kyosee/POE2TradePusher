@@ -7,5 +7,9 @@
   "keywords": [
     "我想購買"
   ],
-  "log_path": "F:/Program Files (x86)/Grinding Gear Games/Path of Exile 2/logs/Client.txt"
+  "log_path": "F:/Program Files (x86)/Grinding Gear Games/Path of Exile 2/logs/Client.txt",
+  "currencies": [
+    "divine",
+    "chance"
+  ]
 }

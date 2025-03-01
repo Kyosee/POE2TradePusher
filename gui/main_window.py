@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from .styles import Styles
 from .tray_icon import TrayIcon
-from .pages import BasicConfigPage, PushManagePage, LogPage
+from .pages import BasicConfigPage, PushManagePage, LogPage, CurrencyConfigPage
 from core.config import Config
 from core.log_monitor import LogMonitor
 from push.wxpusher import WxPusher
@@ -61,6 +61,7 @@ class MainWindow:
         self.menu_buttons = []
         menu_items = [
             ('基本配置', self._show_basic_config),
+            ('通货配置', self._show_currency_config),
             ('推送管理', self._show_push_manage),
             ('触发日志', self._show_log)
         ]
@@ -97,7 +98,11 @@ class MainWindow:
         
         # 创建各功能页面
         self.basic_config_page = BasicConfigPage(self.content_frame, self.log_message, 
-                                               lambda text: self.status_bar.config(text=text))
+                                               lambda text: self.status_bar.config(text=text),
+                                               self.save_config)
+        self.currency_config_page = CurrencyConfigPage(self.content_frame, self.log_message, 
+                                                     lambda text: self.status_bar.config(text=text),
+                                                     self.save_config)
         self.push_manage_page = PushManagePage(self.content_frame, self.log_message, 
                                              lambda text: self.status_bar.config(text=text))
         self.log_page = LogPage(self.content_frame, self.log_message, 
@@ -132,22 +137,29 @@ class MainWindow:
         self._hide_all_pages()
         self.basic_config_page.pack(fill=tk.BOTH, expand=True)
         self._update_menu_state(0)
+
+    def _show_currency_config(self):
+        """显示通货配置页面"""
+        self._hide_all_pages()
+        self.currency_config_page.pack(fill=tk.BOTH, expand=True)
+        self._update_menu_state(1)
         
     def _show_push_manage(self):
         """显示推送管理页面"""
         self._hide_all_pages()
         self.push_manage_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(1)
+        self._update_menu_state(2)
         
     def _show_log(self):
         """显示日志页面"""
         self._hide_all_pages()
         self.log_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(2)
+        self._update_menu_state(3)
         
     def _hide_all_pages(self):
         """隐藏所有页面"""
         self.basic_config_page.pack_forget()
+        self.currency_config_page.pack_forget()
         self.push_manage_page.pack_forget()
         self.log_page.pack_forget()
         
@@ -189,6 +201,7 @@ class MainWindow:
         if success:
             # 应用配置到各个页面
             self.basic_config_page.set_data(self.config.config)
+            self.currency_config_page.set_data(self.config.config)
             self.push_manage_page.set_data(self.config.config)
         
     def save_config(self):
@@ -196,10 +209,11 @@ class MainWindow:
         try:
             # 从各页面获取配置数据
             basic_config = self.basic_config_page.get_data()
+            currency_config = self.currency_config_page.get_data()
             push_config = self.push_manage_page.get_data()
             
             # 合并配置数据
-            config = {**basic_config, **push_config}
+            config = {**basic_config, **currency_config, **push_config}
             
             # 更新并保存配置
             self.config.update(config)
