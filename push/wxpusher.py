@@ -10,8 +10,9 @@ class WxPusher(PushBase):
         
     def validate_config(self):
         """验证WxPusher配置"""
-        app_token = self.config.get('app_token')
-        uid = self.config.get('uid')
+        wxpusher_config = self.config.get('wxpusher', {})
+        app_token = wxpusher_config.get('app_token')
+        uid = wxpusher_config.get('uid')
         
         if not app_token:
             return False, "请配置WxPusher的APP Token"
@@ -37,10 +38,10 @@ class WxPusher(PushBase):
             response = requests.post(
                 self.api_url,
                 json={
-                    "appToken": self.config.get('app_token'),
+                    "appToken": self.config.get('wxpusher', {}).get('app_token'),
                     "content": message,
                     "contentType": 1,
-                    "uids": [self.config.get('uid')]
+                    "uids": [self.config.get('wxpusher', {}).get('uid')]
                 },
                 timeout=10
             )

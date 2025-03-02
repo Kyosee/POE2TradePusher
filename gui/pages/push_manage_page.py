@@ -8,6 +8,7 @@ class PushManagePage(ttk.Frame, LoggingMixin, ConfigMixin):
     def __init__(self, master, callback_log, callback_status):
         ttk.Frame.__init__(self, master, style='Content.TFrame')
         LoggingMixin.__init__(self, callback_log, callback_status)
+        self.init_config()  # 初始化配置对象
         
         # 创建推送配置区域
         self._create_wxpusher_frame()  # WxPusher配置
@@ -35,22 +36,28 @@ class PushManagePage(ttk.Frame, LoggingMixin, ConfigMixin):
         
         # 启用开关
         self.wxpusher_enabled = self._create_enable_switch(self.wxpusher_frame, "启用WxPusher推送")
+        self.wxpusher_enabled.trace_add('write', lambda *args: self._on_config_change())
         
         # AppToken
         ttk.Label(self.wxpusher_frame, text="App Token:", style='Frame.TLabel').grid(
             row=1, column=0, padx=(12,0), sticky="e")
         self.app_token_entry = ttk.Entry(self.wxpusher_frame, width=50, font=('Consolas', 10))
         self.app_token_entry.grid(row=1, column=1, padx=(0,6), sticky="ew")
+        self.app_token_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
         
         # UID
         ttk.Label(self.wxpusher_frame, text="用户UID:", style='Frame.TLabel').grid(
             row=2, column=0, padx=(12,0), sticky="e")
         self.uid_entry = ttk.Entry(self.wxpusher_frame, width=50, font=('Consolas', 10))
         self.uid_entry.grid(row=2, column=1, padx=(0,6), sticky="ew")
+        self.uid_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
         
         # 按钮容器
         btn_frame = ttk.Frame(self.wxpusher_frame)
         btn_frame.grid(row=1, column=2, rowspan=2, padx=6, sticky="ns")
+
+        # 添加配置变更追踪变量
+        self.config_changed = False
         
         # 测试按钮
         self.test_wxpusher_btn = ttk.Button(btn_frame, text="🔔 测试", 
@@ -73,36 +80,42 @@ class PushManagePage(ttk.Frame, LoggingMixin, ConfigMixin):
         
         # 启用开关
         self.email_enabled = self._create_enable_switch(self.email_frame, "启用邮箱推送")
+        self.email_enabled.trace_add('write', lambda *args: self._on_config_change())
         
         # SMTP服务器
         ttk.Label(self.email_frame, text="SMTP服务器:", style='Frame.TLabel').grid(
             row=1, column=0, padx=(12,0), sticky="e")
         self.smtp_server_entry = ttk.Entry(self.email_frame, width=50, font=('Consolas', 10))
         self.smtp_server_entry.grid(row=1, column=1, padx=(0,6), sticky="ew")
+        self.smtp_server_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
         
         # SMTP端口
         ttk.Label(self.email_frame, text="SMTP端口:", style='Frame.TLabel').grid(
             row=2, column=0, padx=(12,0), sticky="e")
         self.smtp_port_entry = ttk.Entry(self.email_frame, width=50, font=('Consolas', 10))
         self.smtp_port_entry.grid(row=2, column=1, padx=(0,6), sticky="ew")
+        self.smtp_port_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
         
         # 发件人邮箱
         ttk.Label(self.email_frame, text="发件人邮箱:", style='Frame.TLabel').grid(
             row=3, column=0, padx=(12,0), sticky="e")
         self.sender_email_entry = ttk.Entry(self.email_frame, width=50, font=('Consolas', 10))
         self.sender_email_entry.grid(row=3, column=1, padx=(0,6), sticky="ew")
+        self.sender_email_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
         
         # 邮箱密码/授权码
         ttk.Label(self.email_frame, text="密码/授权码:", style='Frame.TLabel').grid(
             row=4, column=0, padx=(12,0), sticky="e")
         self.email_password_entry = ttk.Entry(self.email_frame, width=50, font=('Consolas', 10), show='*')
         self.email_password_entry.grid(row=4, column=1, padx=(0,6), sticky="ew")
+        self.email_password_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
         
         # 收件人邮箱
         ttk.Label(self.email_frame, text="收件人邮箱:", style='Frame.TLabel').grid(
             row=5, column=0, padx=(12,0), sticky="e")
         self.receiver_email_entry = ttk.Entry(self.email_frame, width=50, font=('Consolas', 10))
         self.receiver_email_entry.grid(row=5, column=1, padx=(0,6), sticky="ew")
+        self.receiver_email_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
         
         # 按钮容器
         btn_frame = ttk.Frame(self.email_frame)
@@ -248,26 +261,38 @@ class PushManagePage(ttk.Frame, LoggingMixin, ConfigMixin):
         )
         MessageDialog(self, "邮箱配置帮助", help_text)
         
+    def _on_config_change(self, *args):
+        """配置变更处理"""
+        if not self.config_changed and self.save_config:
+            self.save_config()
+
     def set_config_data(self, data):
         """设置配置数据"""
-        # WxPusher配置
-        wxpusher_data = data.get('wxpusher', {})
-        self.wxpusher_enabled.set(wxpusher_data.get('enabled', True))
-        self.app_token_entry.delete(0, END)
-        self.app_token_entry.insert(0, wxpusher_data.get('app_token', ''))
-        self.uid_entry.delete(0, END)
-        self.uid_entry.insert(0, wxpusher_data.get('uid', ''))
+        # 暂时禁用配置变更
+        self.config_changed = True
         
-        # 邮箱配置
-        email_data = data.get('email', {})
-        self.email_enabled.set(email_data.get('enabled', True))
-        self.smtp_server_entry.delete(0, END)
-        self.smtp_server_entry.insert(0, email_data.get('smtp_server', ''))
-        self.smtp_port_entry.delete(0, END)
-        self.smtp_port_entry.insert(0, email_data.get('smtp_port', ''))
-        self.sender_email_entry.delete(0, END)
-        self.sender_email_entry.insert(0, email_data.get('sender_email', ''))
-        self.email_password_entry.delete(0, END)
-        self.email_password_entry.insert(0, email_data.get('email_password', ''))
-        self.receiver_email_entry.delete(0, END)
-        self.receiver_email_entry.insert(0, email_data.get('receiver_email', ''))
+        try:
+            # WxPusher配置
+            wxpusher_data = data.get('wxpusher', {})
+            self.wxpusher_enabled.set(wxpusher_data.get('enabled', False))
+            self.app_token_entry.delete(0, END)
+            self.app_token_entry.insert(0, wxpusher_data.get('app_token', ''))
+            self.uid_entry.delete(0, END)
+            self.uid_entry.insert(0, wxpusher_data.get('uid', ''))
+            
+            # 邮箱配置
+            email_data = data.get('email', {})
+            self.email_enabled.set(email_data.get('enabled', False))
+            self.smtp_server_entry.delete(0, END)
+            self.smtp_server_entry.insert(0, email_data.get('smtp_server', ''))
+            self.smtp_port_entry.delete(0, END)
+            self.smtp_port_entry.insert(0, email_data.get('smtp_port', ''))
+            self.sender_email_entry.delete(0, END)
+            self.sender_email_entry.insert(0, email_data.get('sender_email', ''))
+            self.email_password_entry.delete(0, END)
+            self.email_password_entry.insert(0, email_data.get('email_password', ''))
+            self.receiver_email_entry.delete(0, END)
+            self.receiver_email_entry.insert(0, email_data.get('receiver_email', ''))
+        finally:
+            # 重新启用配置变更
+            self.config_changed = False

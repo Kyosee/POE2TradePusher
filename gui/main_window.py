@@ -2,7 +2,9 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from .styles import Styles
 from .tray_icon import TrayIcon
-from .pages import BasicConfigPage, PushManagePage, LogPage, CurrencyConfigPage, StatsPage, RecognitionTestPage
+from .pages import BasicConfigPage, ProcessConfigPage, PushManagePage, LogPage, CurrencyConfigPage, StatsPage
+from .pages.stash_test_page import StashTestPage
+from .pages.position_test_page import PositionTestPage
 from core.config import Config
 from core.log_monitor import LogMonitor
 from push.wxpusher import WxPusher
@@ -27,6 +29,7 @@ class MainWindow:
         self.is_minimized = False
         self.monitoring = False
         self.current_menu = None
+        self.current_submenu = None  # 当前选中的子菜单
         
         # 设置样式
         self.styles.setup(root)
@@ -64,12 +67,14 @@ class MainWindow:
         
         menu_items = [
             ('基本配置', self._show_basic_config, []),
+            ('流程配置', self._show_process_config, []),
             ('推送配置', self._show_push_manage, []),
             ('通货配置', self._show_currency_config, []),
             ('数据统计', self._show_stats, []),
             ('触发日志', self._show_log, []),
             ('识别测试', None, [
-                ('仓库识别', self._show_recognition_test)
+                ('仓库测试', self._show_stash_recognition),
+                ('定位测试', self._show_grid_recognition)
             ])
         ]
         
@@ -125,18 +130,24 @@ class MainWindow:
                                                lambda text: self.status_bar.config(text=text),
                                                self.save_config)
         self.basic_config_page.set_main_window(self)
+        
+        self.process_config_page = ProcessConfigPage(self.content_frame, self.log_message,
+                                                   lambda text: self.status_bar.config(text=text),
+                                                   self.save_config)
+        self.push_manage_page = PushManagePage(self.content_frame, self.log_message, 
+                                             lambda text: self.status_bar.config(text=text))
         self.currency_config_page = CurrencyConfigPage(self.content_frame, self.log_message, 
                                                      lambda text: self.status_bar.config(text=text),
                                                      self.save_config)
-        self.push_manage_page = PushManagePage(self.content_frame, self.log_message, 
-                                             lambda text: self.status_bar.config(text=text))
         self.log_page = LogPage(self.content_frame, self.log_message, 
                               lambda text: self.status_bar.config(text=text))
         self.stats_page = StatsPage(self.content_frame, self.log_message,
                                   lambda text: self.status_bar.config(text=text),
                                   self.save_config)
-        self.recognition_test_page = RecognitionTestPage(self.content_frame, self.log_message,
-                                                       lambda text: self.status_bar.config(text=text))
+        self.stash_recognition_page = StashTestPage(self.content_frame, self.log_message,
+                                                  lambda text: self.status_bar.config(text=text))
+        self.grid_recognition_page = PositionTestPage(self.content_frame, self.log_message,
+                                                    lambda text: self.status_bar.config(text=text))
         
         # 创建状态栏
         self.status_bar = ttk.Label(self.root, text="就绪", style='Status.TLabel')
@@ -167,36 +178,53 @@ class MainWindow:
         self._hide_all_pages()
         self.basic_config_page.pack(fill=tk.BOTH, expand=True)
         self._update_menu_state(0)
+        
+    def _show_process_config(self):
+        """显示流程配置页面"""
+        self._hide_all_pages()
+        self.process_config_page.pack(fill=tk.BOTH, expand=True)
+        self._update_menu_state(1)
                 
     def _show_push_manage(self):
         """显示推送管理页面"""
         self._hide_all_pages()
         self.push_manage_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(1)
+        self._update_menu_state(2)
 
     def _show_currency_config(self):
         """显示通货配置页面"""
         self._hide_all_pages()
         self.currency_config_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(2)
+        self._update_menu_state(3)
         
     def _show_stats(self):
         """显示数据统计页面"""
         self._hide_all_pages()
         self.stats_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(3)
+        self._update_menu_state(4)
         
     def _show_log(self):
         """显示日志页面"""
         self._hide_all_pages()
         self.log_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(4)
+        self._update_menu_state(5)
         
-    def _show_recognition_test(self):
-        """显示识别测试页面"""
+    def _show_stash_recognition(self):
+        """显示仓库识别页面"""
         self._hide_all_pages()
-        self.recognition_test_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(5)  # 选中识别测试菜单
+        self.stash_recognition_page.pack(fill=tk.BOTH, expand=True)
+        self._update_menu_state(6, '仓库测试')  # 选中识别测试菜单和仓库测试子菜单
+        # 确保二级菜单可见
+        if '识别测试' in self.submenu_frames:
+            submenu_info = self.submenu_frames['识别测试']
+            if not submenu_info['visible']:
+                self._toggle_submenu('识别测试')
+        
+    def _show_grid_recognition(self):
+        """显示仓位识别页面"""
+        self._hide_all_pages()
+        self.grid_recognition_page.pack(fill=tk.BOTH, expand=True)
+        self._update_menu_state(6, '定位测试')  # 选中识别测试菜单和定位测试子菜单
         # 确保二级菜单可见
         if '识别测试' in self.submenu_frames:
             submenu_info = self.submenu_frames['识别测试']
@@ -206,11 +234,13 @@ class MainWindow:
     def _hide_all_pages(self):
         """隐藏所有页面"""
         self.basic_config_page.pack_forget()
+        self.process_config_page.pack_forget()
         self.currency_config_page.pack_forget()
         self.push_manage_page.pack_forget()
         self.stats_page.pack_forget()
         self.log_page.pack_forget()
-        self.recognition_test_page.pack_forget()
+        self.stash_recognition_page.pack_forget()
+        self.grid_recognition_page.pack_forget()
         
     def _toggle_submenu(self, menu_text):
         """切换子菜单的显示状态"""
@@ -220,29 +250,40 @@ class MainWindow:
             
             # 如果当前子菜单是隐藏的，显示它
             if not submenu_info['visible']:
-                submenu_frame.pack(fill=tk.X, after=self.menu_buttons[5])  # 在父菜单按钮后显示
+                submenu_frame.pack(fill=tk.X, after=self.menu_buttons[6])  # 在父菜单按钮后显示
                 submenu_info['visible'] = True
             else:
                 submenu_frame.pack_forget()
                 submenu_info['visible'] = False
                 
-    def _update_menu_state(self, selected_index):
+    def _update_menu_state(self, selected_index, selected_submenu=None):
         """更新菜单按钮状态"""
         for i, btn in enumerate(self.menu_buttons):
+            menu_text = btn.cget('text')
+            
             # 更新一级菜单状态
             if i == selected_index:
-                btn.state(['selected'])
+                if menu_text in self.submenu_frames and not selected_submenu:
+                    btn.state(['!selected'])  # 如果是有子菜单的项目但没有选中子菜单，取消选中状态
+                else:
+                    btn.state(['selected'])
             else:
                 btn.state(['!selected'])
             
-            # 更新二级菜单状态（如果存在）
-            menu_text = btn.cget('text')
+            # 更新二级菜单状态
             if menu_text in self.submenu_frames:
-                for sub_btn in self.submenu_frames[menu_text]['buttons']:
-                    if selected_index == i:
+                submenu_info = self.submenu_frames[menu_text]
+                for sub_btn in submenu_info['buttons']:
+                    sub_text = sub_btn.cget('text').strip()  # 移除前导空格再比较
+                    if i == selected_index and sub_text == selected_submenu:
                         sub_btn.state(['selected'])
+                        btn.state(['selected'])  # 当子菜单选中时，父菜单也选中
                     else:
                         sub_btn.state(['!selected'])
+        
+        # 更新当前选中状态
+        self.current_menu = selected_index
+        self.current_submenu = selected_submenu
         
     def setup_bindings(self):
         """设置事件绑定"""
@@ -272,23 +313,52 @@ class MainWindow:
         success, msg = self.config.load()
         self.log_page.append_log(msg, "INFO" if success else "WARN")
         if success:
-            # 应用配置到各个页面
+            # 应用配置到各个页面，但暂时禁用自动保存
+            self.basic_config_page.save_config = None
+            self.process_config_page.save_config = None
+            self.currency_config_page.save_config = None
+            self.push_manage_page.save_config = None
+
+            # 设置配置数据
             self.basic_config_page.set_config_data(self.config.config)
+            self.process_config_page.set_config_data(self.config.config)
             self.currency_config_page.set_config_data(self.config.config)
             self.push_manage_page.set_config_data(self.config.config)
+
+            # 恢复自动保存
+            self.basic_config_page.save_config = self.save_config
+            self.process_config_page.save_config = self.save_config
+            self.currency_config_page.save_config = self.save_config
+            self.push_manage_page.save_config = self.save_config
         
     def save_config(self):
         """保存配置"""
         try:
             # 从各页面获取配置数据
-            basic_config = self.basic_config_page.get_data()
-            currency_config = self.currency_config_page.get_data()
-            push_config = self.push_manage_page.get_data()
-            # 合并配置数据
-            config = {**basic_config, **currency_config, **push_config}
+            basic_config = self.basic_config_page.get_config_data()
+            process_config = self.process_config_page.get_config_data()
+            currency_config = self.currency_config_page.get_config_data()
+            push_config = self.push_manage_page.get_config_data()
+            
+            # 使用深度更新合并配置
+            def deep_merge(current, new):
+                for key, value in new.items():
+                    if isinstance(value, dict) and key in current and isinstance(current[key], dict):
+                        deep_merge(current[key], value)
+                    else:
+                        current[key] = value
+
+            # 获取当前配置的复制以保留完整结构
+            merged_config = self.config.config.copy()
+            
+            # 依次合并各部分配置
+            deep_merge(merged_config, basic_config)
+            deep_merge(merged_config, process_config)
+            deep_merge(merged_config, currency_config)
+            deep_merge(merged_config, push_config)
             
             # 更新并保存配置
-            self.config.update(config)
+            self.config.config = merged_config
             success, msg = self.config.save()
             
             # 在日志页面显示结果
@@ -318,7 +388,7 @@ class MainWindow:
             self.monitor = LogMonitor(self.config, self.log_message, self.stats_page)
             
             # 根据配置创建并添加推送处理器
-            push_data = self.push_manage_page.get_data()
+            push_data = self.push_manage_page.get_config_data()
             handlers_added = 0
             
             # 添加WxPusher处理器
@@ -367,27 +437,21 @@ class MainWindow:
         
     def _validate_settings(self):
         """验证设置完整性"""
-        basic_data = self.basic_config_page.get_data()
-        push_data = self.push_manage_page.get_data()
-        
-        # 验证基本设置
-        if not basic_data.get('log_path'):
-            self.log_page.append_log("请选择日志文件", "ERROR")
-            messagebox.showerror("设置不完整", "请选择日志文件")
+        basic_success, basic_message = self.basic_config_page.validate_config()
+        if not basic_success:
+            self.log_page.append_log(basic_message, "ERROR")
+            messagebox.showerror("设置不完整", basic_message)
             return False
-            
-        if not basic_data.get('keywords', []):
-            self.log_page.append_log("请至少添加一个关键词", "ERROR")
-            messagebox.showerror("设置不完整", "请至少添加一个关键词")
-            return False
-            
+
         # 验证是否启用了至少一种推送方式
+        push_data = self.push_manage_page.get_config_data()
         wxpusher_enabled = push_data.get('wxpusher', {}).get('enabled', False)
         email_enabled = push_data.get('email', {}).get('enabled', False)
         
         if not wxpusher_enabled and not email_enabled:
-            self.log_page.append_log("请至少启用一种推送方式", "ERROR")
-            messagebox.showerror("设置不完整", "请至少启用一种推送方式")
+            msg = "请至少启用一种推送方式"
+            self.log_page.append_log(msg, "ERROR")
+            messagebox.showerror("设置不完整", msg)
             return False
         
         return True
@@ -425,7 +489,7 @@ class MainWindow:
     def get_currency_config(self):
         """获取已配置的通货单位列表"""
         if hasattr(self, 'currency_config_page'):
-            return self.currency_config_page.get_data().get('currencies', [])
+            return self.currency_config_page.get_config_data().get('currencies', [])
         return []
 
     def quit_app(self):

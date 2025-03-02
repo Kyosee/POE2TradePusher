@@ -44,6 +44,11 @@ def switch_to_window(window_name):
 
 class ConfigMixin:
     """配置管理混入类"""
+    def init_config(self):
+        """初始化配置对象"""
+        from core.config import Config
+        self.config = Config()
+
     def get_config_data(self):
         """获取配置数据"""
         raise NotImplementedError

@@ -11,7 +11,20 @@ class Config:
             'app_token': '',
             'uid': '',
             'keywords': [],
-            'log_path': ''
+            'log_path': '',
+            'wxpusher': {
+                'enabled': False,
+                'app_token': '',
+                'uid': ''
+            },
+            'email': {
+                'enabled': False,
+                'smtp_server': '',
+                'smtp_port': '',
+                'sender_email': '',
+                'email_password': '',
+                'receiver_email': ''
+            }
         }
         
     def load(self):
@@ -19,7 +32,14 @@ class Config:
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    self.config = json.load(f)
+                    loaded_config = json.load(f)
+                    def deep_update(current, new):
+                        for key, value in new.items():
+                            if key in current and isinstance(current[key], dict) and isinstance(value, dict):
+                                deep_update(current[key], value)
+                            else:
+                                current[key] = value
+                    deep_update(self.config, loaded_config)
                 return True, "配置加载完成"
             return False, "未找到配置文件，将使用默认设置"
         except Exception as e:
@@ -36,7 +56,14 @@ class Config:
     
     def update(self, new_config):
         """更新配置"""
-        self.config.update(new_config)
+        def deep_update(current, new):
+            for key, value in new.items():
+                if key in current and isinstance(current[key], dict) and isinstance(value, dict):
+                    deep_update(current[key], value)
+                else:
+                    current[key] = value
+                    
+        deep_update(self.config, new_config)
         
     def get(self, key, default=None):
         """获取配置值"""

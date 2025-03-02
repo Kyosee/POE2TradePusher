@@ -10,6 +10,7 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
     def __init__(self, master, log_callback, status_callback, callback_save=None):
         ttk.Frame.__init__(self, master, style='Content.TFrame')
         LoggingMixin.__init__(self, log_callback, status_callback)
+        self.init_config()  # 初始化配置对象
         self.save_config = callback_save
         self.main_window = None  # 用于存储MainWindow引用
         
@@ -415,15 +416,34 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
                 "mode": mode,
                 "pattern": pattern
             })
-            
-        return {
+        
+        # 获取当前配置以保留其他设置
+        current_config = self.config.config if hasattr(self, 'config') else {}
+        
+        # 创建新配置，保留现有的wxpusher和email配置
+        new_config = {
             'game_window': self.game_entry.get(),
             'log_path': self.file_entry.get(),
             'interval': int(self.interval_spin.get()),
             'push_interval': int(self.push_interval_entry.get() or 0),
             'keywords': keywords,
-            'always_on_top': self.top_switch.get()
+            'always_on_top': self.top_switch.get(),
+            'wxpusher': current_config.get('wxpusher', {
+                'enabled': False,
+                'app_token': '',
+                'uid': ''
+            }),
+            'email': current_config.get('email', {
+                'enabled': False,
+                'smtp_server': '',
+                'smtp_port': '',
+                'sender_email': '',
+                'email_password': '',
+                'receiver_email': ''
+            })
         }
+        
+        return new_config
         
     def set_config_data(self, data):
         """设置配置数据"""

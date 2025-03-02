@@ -11,6 +11,7 @@ class CurrencyConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
     def __init__(self, master, callback_log, callback_status, callback_save=None):
         ttk.Frame.__init__(self, master, style='Content.TFrame')
         LoggingMixin.__init__(self, callback_log, callback_status)
+        self.init_config()  # 初始化配置对象
         self.save_config = callback_save
         self.currency_items = []  # 存储通货单位项的引用
         self.selected_currency_item = None

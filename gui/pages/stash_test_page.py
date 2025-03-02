@@ -1,151 +1,20 @@
-import tkinter as tk
-from tkinter import ttk
-from PIL import ImageGrab, ImageTk, Image
+from .recognition_base_page import RecognitionBasePage
+import cv2
+import numpy as np
+from PIL import Image, ImageTk
 import win32gui
 import win32con
 import win32api
-import cv2
-import numpy as np
-import os
-from pathlib import Path
-from ..utils import LoggingMixin, find_window
+import time
 
-class RecognitionTestPage(ttk.Frame, LoggingMixin):
-    """识别测试页面"""
+class StashTestPage(RecognitionBasePage):
+    """仓库测试页面 - 识别仓库并执行点击操作"""
     def __init__(self, master, callback_log, callback_status, main_window=None):
-        ttk.Frame.__init__(self, master, style='Content.TFrame')
-        LoggingMixin.__init__(self, callback_log, callback_status)
-        self.main_window = main_window
+        super().__init__(master, callback_log, callback_status, main_window)
+        self.set_template("assets/rec/stash_cn.png")
         
-        # 加载模板图片
-        self.template_path = "assets/rec/stash_cn.png"
-        self.template = cv2.imread(self.template_path)
-        if self.template is None:
-            raise ValueError(f"无法加载模板图片: {self.template_path}")
-        
-        # 界面组件
-        self._create_search_frame()
-        self._create_preview_frame()
-        self._create_log_frame()
-        
-    def _preprocess_image(self, image):
-        """图像预处理以提高识别率"""
-        # 转换为OpenCV格式
-        img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-        return img
-        
-    def validate_template(self):
-        """验证模板图片是否有效"""
-        if not os.path.exists(self.template_path):
-            self.log_message(f"模板文件不存在: {self.template_path}", "ERROR")
-            return False
-        if self.template is None:
-            self.log_message("模板图片无法加载", "ERROR")
-            return False
-        return True
-        
-    def _create_search_frame(self):
-        """创建搜索栏"""
-        search_frame = ttk.LabelFrame(self, text="识别设置")
-        search_frame.pack(fill=tk.X, padx=12, pady=6)
-        
-        input_frame = ttk.Frame(search_frame)
-        input_frame.pack(fill=tk.X, padx=6, pady=6)
-        
-        # 按钮框架
-        btn_frame = ttk.Frame(input_frame)
-        btn_frame.pack(side=tk.LEFT)
-        
-        self.recognize_btn = ttk.Button(
-            btn_frame, 
-            text="🔍 识别仓库", 
-            command=self._do_recognition,
-            style='Control.TButton'
-        )
-        self.recognize_btn.pack(side=tk.LEFT, padx=3)
-        
-        refresh_btn = ttk.Button(
-            btn_frame, 
-            text="🔄 刷新", 
-            command=self._refresh_preview,
-            style='Control.TButton'
-        )
-        refresh_btn.pack(side=tk.LEFT, padx=3)
-        
-    def _create_preview_frame(self):
-        """创建预览区域"""
-        preview_frame = ttk.LabelFrame(self, text="截图预览")
-        preview_frame.pack(fill=tk.BOTH, padx=12, pady=6)
-        
-        # 创建固定高度的预览容器
-        preview_container = ttk.Frame(preview_frame, height=400)
-        preview_container.pack(fill=tk.BOTH, padx=6, pady=6)
-        preview_container.pack_propagate(False)  # 防止子组件改变容器大小
-        
-        self.preview_label = ttk.Label(preview_container)
-        self.preview_label.pack(fill=tk.BOTH, expand=True)
-        
-    def _create_log_frame(self):
-        """创建日志区域"""
-        log_frame = ttk.LabelFrame(self, text="识别日志")
-        log_frame.pack(fill=tk.BOTH, padx=12, pady=6)
-        
-        self.log_text = tk.Text(log_frame, height=6, wrap=tk.WORD,
-                               font=('微软雅黑', 9))
-        self.log_text.pack(fill=tk.BOTH, padx=6, pady=6)
-        
-        # 添加滚动条
-        scrollbar = ttk.Scrollbar(log_frame, command=self.log_text.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.log_text.configure(yscrollcommand=scrollbar.set)
-        
-    def _get_window_name(self):
-        """获取游戏窗口名称"""
-        default_name = "Path of Exile 2"
-        try:
-            if self.main_window and hasattr(self.main_window, 'basic_config_page'):
-                window_name = self.main_window.basic_config_page.game_entry.get().strip()
-                return window_name if window_name else default_name
-        except Exception:
-            pass
-        return default_name
-        
-    def _refresh_preview(self):
-        """刷新预览图像"""
-        try:
-            # 获取游戏窗口名称
-            window_name = self._get_window_name()
-            
-            # 查找窗口
-            hwnd = find_window(window_name)
-            if not hwnd:
-                self._add_log(f"未找到游戏窗口: {window_name}", "WARNING")
-                return False
-                
-            # 获取窗口区域并截图
-            rect = win32gui.GetWindowRect(hwnd)
-            image = ImageGrab.grab(rect)
-            
-            # 调整图像大小以适应预览区域
-            preview_width = 800
-            ratio = preview_width / image.width
-            preview_height = int(image.height * ratio)
-            image = image.resize((preview_width, preview_height), Image.LANCZOS)
-            
-            # 更新预览
-            photo = ImageTk.PhotoImage(image)
-            self.preview_label.configure(image=photo)
-            self.preview_label.image = photo
-            
-            self.update_status("✅ 预览已更新")
-            return True
-            
-        except Exception as e:
-            self._add_log(f"刷新预览失败: {str(e)}", "ERROR")
-            return False
-            
     def _do_recognition(self):
-        """执行识别"""
+        """执行仓库识别和点击"""
         # 验证模板
         if not self.validate_template():
             return
@@ -163,14 +32,14 @@ class RecognitionTestPage(ttk.Frame, LoggingMixin):
             
             # 获取游戏窗口截图
             window_name = self._get_window_name()
-            hwnd = find_window(window_name)
+            hwnd = self._find_window(window_name)
             if not hwnd:
                 self._add_log(f"未找到游戏窗口: {window_name}", "ERROR")
                 return
                 
-            rect = win32gui.GetWindowRect(hwnd)
-            original_image = ImageGrab.grab(rect)
-            original_cv = cv2.cvtColor(np.array(original_image), cv2.COLOR_RGB2BGR)
+            rect = self._get_window_rect(hwnd)
+            original_image = self._grab_screen(rect)
+            original_cv = self._convert_to_cv(original_image)
             
             # 转换为灰度图进行匹配
             gray_img = cv2.cvtColor(original_cv, cv2.COLOR_BGR2GRAY)
@@ -257,7 +126,6 @@ class RecognitionTestPage(ttk.Frame, LoggingMixin):
                     win32gui.SetForegroundWindow(hwnd)
                     win32gui.SetActiveWindow(hwnd)
                     # 等待窗口激活
-                    import time
                     time.sleep(0.2)
                     
                     # 获取窗口左上角坐标
@@ -292,9 +160,3 @@ class RecognitionTestPage(ttk.Frame, LoggingMixin):
         except Exception as e:
             self._add_log(f"识别过程出错: {str(e)}", "ERROR")
             self.update_status("❌ 识别失败")
-            
-    def _add_log(self, message, level="INFO"):
-        """添加日志"""
-        self.log_text.insert(tk.END, f"{message}\n")
-        self.log_text.see(tk.END)
-        self.log_message(message, level)
