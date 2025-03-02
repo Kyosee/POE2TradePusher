@@ -1,9 +1,10 @@
 {
   "minimize_to_tray": false,
+  "game_window": "Path of Exile 2",
   "interval": 100,
   "push_interval": 0,
-  "app_token": "放token",
-  "uid": "放UID",
+  "app_token": "AT_l1BflOjhu3ZlAdUJagz5KQyi3lK3le0p",
+  "uid": "UID_tEL7WQ9W9aRpHp0im3vsP4V260Q4",
   "keywords": [
     {
       "mode": "交易模式",
@@ -28,8 +29,8 @@
   ],
   "wxpusher": {
     "enabled": true,
-    "app_token": "AT_l1BflOjhu3ZlAdUJagz5KQyi3lK3le0p",
-    "uid": "UID_tEL7WQ9W9aRpHp0im3vsP4V260Q4"
+    "app_token": "",
+    "uid": ""
   },
   "email": {
     "enabled": false,
@@ -38,5 +39,6 @@
     "sender_email": "",
     "email_password": "",
     "receiver_email": ""
-  }
-f
+  },
+  "game_window": "Path of Exile 2"
+}

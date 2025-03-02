@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from .styles import Styles
 from .tray_icon import TrayIcon
-from .pages import BasicConfigPage, PushManagePage, LogPage, CurrencyConfigPage, StatsPage
+from .pages import BasicConfigPage, PushManagePage, LogPage, CurrencyConfigPage, StatsPage, RecognitionTestPage
 from core.config import Config
 from core.log_monitor import LogMonitor
 from push.wxpusher import WxPusher
@@ -16,6 +16,7 @@ class MainWindow:
         self.root = root
         self.root.title("POE2 Trade Pusher")
         self.root.geometry("1000x800")
+        self.always_on_top = False
         
         # 初始化组件
         self.styles = Styles()
@@ -59,19 +60,41 @@ class MainWindow:
         
         # 创建菜单按钮
         self.menu_buttons = []
+        self.submenu_frames = {}  # 存储二级菜单框架
+        
         menu_items = [
-            ('基本配置', self._show_basic_config),
-            ('推送配置', self._show_push_manage),
-            ('通货配置', self._show_currency_config),
-            ('数据统计', self._show_stats),
-            ('触发日志', self._show_log)
+            ('基本配置', self._show_basic_config, []),
+            ('推送配置', self._show_push_manage, []),
+            ('通货配置', self._show_currency_config, []),
+            ('数据统计', self._show_stats, []),
+            ('触发日志', self._show_log, []),
+            ('识别测试', None, [
+                ('仓库识别', self._show_recognition_test)
+            ])
         ]
         
-        for text, command in menu_items:
+        for text, command, submenus in menu_items:
             btn = ttk.Button(self.menu_frame, text=text, style='Menu.TButton',
-                           command=command)
+                           command=command if command else lambda t=text: self._toggle_submenu(t))
             btn.pack(fill=tk.X, pady=1)
             self.menu_buttons.append(btn)
+            
+            # 如果有子菜单，创建子菜单框架
+            if submenus:
+                submenu_frame = ttk.Frame(self.menu_frame, style='Menu.TFrame')
+                self.submenu_frames[text] = {
+                    'frame': submenu_frame,
+                    'visible': False,
+                    'buttons': []
+                }
+                
+                # 创建子菜单按钮
+                for sub_text, sub_command in submenus:
+                    sub_btn = ttk.Button(submenu_frame, text='  ' + sub_text,
+                                       style='SubMenu.TButton',
+                                       command=sub_command)
+                    sub_btn.pack(fill=tk.X, pady=1)
+                    self.submenu_frames[text]['buttons'].append(sub_btn)
             
         # 添加弹性空间
         ttk.Frame(self.menu_frame).pack(fill=tk.Y, expand=True)
@@ -101,6 +124,7 @@ class MainWindow:
         self.basic_config_page = BasicConfigPage(self.content_frame, self.log_message, 
                                                lambda text: self.status_bar.config(text=text),
                                                self.save_config)
+        self.basic_config_page.set_main_window(self)
         self.currency_config_page = CurrencyConfigPage(self.content_frame, self.log_message, 
                                                      lambda text: self.status_bar.config(text=text),
                                                      self.save_config)
@@ -111,6 +135,8 @@ class MainWindow:
         self.stats_page = StatsPage(self.content_frame, self.log_message,
                                   lambda text: self.status_bar.config(text=text),
                                   self.save_config)
+        self.recognition_test_page = RecognitionTestPage(self.content_frame, self.log_message,
+                                                       lambda text: self.status_bar.config(text=text))
         
         # 创建状态栏
         self.status_bar = ttk.Label(self.root, text="就绪", style='Status.TLabel')
@@ -166,6 +192,17 @@ class MainWindow:
         self.log_page.pack(fill=tk.BOTH, expand=True)
         self._update_menu_state(4)
         
+    def _show_recognition_test(self):
+        """显示识别测试页面"""
+        self._hide_all_pages()
+        self.recognition_test_page.pack(fill=tk.BOTH, expand=True)
+        self._update_menu_state(5)  # 选中识别测试菜单
+        # 确保二级菜单可见
+        if '识别测试' in self.submenu_frames:
+            submenu_info = self.submenu_frames['识别测试']
+            if not submenu_info['visible']:
+                self._toggle_submenu('识别测试')
+        
     def _hide_all_pages(self):
         """隐藏所有页面"""
         self.basic_config_page.pack_forget()
@@ -173,14 +210,39 @@ class MainWindow:
         self.push_manage_page.pack_forget()
         self.stats_page.pack_forget()
         self.log_page.pack_forget()
+        self.recognition_test_page.pack_forget()
         
+    def _toggle_submenu(self, menu_text):
+        """切换子菜单的显示状态"""
+        if menu_text in self.submenu_frames:
+            submenu_info = self.submenu_frames[menu_text]
+            submenu_frame = submenu_info['frame']
+            
+            # 如果当前子菜单是隐藏的，显示它
+            if not submenu_info['visible']:
+                submenu_frame.pack(fill=tk.X, after=self.menu_buttons[5])  # 在父菜单按钮后显示
+                submenu_info['visible'] = True
+            else:
+                submenu_frame.pack_forget()
+                submenu_info['visible'] = False
+                
     def _update_menu_state(self, selected_index):
         """更新菜单按钮状态"""
         for i, btn in enumerate(self.menu_buttons):
+            # 更新一级菜单状态
             if i == selected_index:
                 btn.state(['selected'])
             else:
                 btn.state(['!selected'])
+            
+            # 更新二级菜单状态（如果存在）
+            menu_text = btn.cget('text')
+            if menu_text in self.submenu_frames:
+                for sub_btn in self.submenu_frames[menu_text]['buttons']:
+                    if selected_index == i:
+                        sub_btn.state(['selected'])
+                    else:
+                        sub_btn.state(['!selected'])
         
     def setup_bindings(self):
         """设置事件绑定"""
@@ -340,10 +402,17 @@ class MainWindow:
             self.root.deiconify()
             self.root.lift()
             self.root.focus_force()
+            if self.always_on_top:
+                self.root.attributes('-topmost', True)
             self.is_minimized = False
         else:
             self.root.withdraw()
             self.is_minimized = True
+            
+    def set_always_on_top(self, value):
+        """设置窗口是否置顶"""
+        self.always_on_top = value
+        self.root.attributes('-topmost', value)
             
     def on_close(self):
         """处理窗口关闭事件"""

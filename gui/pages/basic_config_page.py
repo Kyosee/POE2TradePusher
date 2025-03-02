@@ -9,6 +9,7 @@ class BasicConfigPage(ttk.Frame):
         self.log_message = callback_log
         self.status_bar = callback_status
         self.save_config = callback_save
+        self.main_window = None  # 用于存储MainWindow引用
         
         # 创建各组件
         self._create_game_frame()
@@ -42,6 +43,15 @@ class BasicConfigPage(ttk.Frame):
         
         ttk.Label(self.settings_frame, text="推送间隔(ms):", style='Frame.TLabel').grid(row=0, column=2, padx=6)
         self.push_interval_entry = ttk.Entry(self.settings_frame, width=8, font=('Consolas', 10))
+        
+        # 添加置顶开关
+        ttk.Label(self.settings_frame, text="置顶本程序窗口:", style='Frame.TLabel').grid(row=1, column=0, padx=6, pady=(6,0))
+        from gui.widgets.switch import Switch
+        self.top_switch = Switch(self.settings_frame, width=50, height=30, default=False)
+        self.top_switch.grid(row=1, column=1, padx=0, pady=(6,0))
+        
+        # 绑定置顶开关事件
+        self.top_switch.checked.trace_add('write', self._on_top_switch_change)
         
         # 布局监控设置区域
         self.settings_frame.pack(fill=X, padx=12, pady=6)
@@ -481,13 +491,32 @@ class BasicConfigPage(ttk.Frame):
             'log_path': self.file_entry.get(),
             'interval': int(self.interval_spin.get()),
             'push_interval': int(self.push_interval_entry.get() or 0),
-            'keywords': keywords
+            'keywords': keywords,
+            'always_on_top': self.top_switch.get()
         }
         
+    def set_main_window(self, main_window):
+        """设置MainWindow引用"""
+        self.main_window = main_window
+
+    def _on_top_switch_change(self, *args):
+        """处理置顶开关状态变化"""
+        if self.main_window:
+            self.main_window.set_always_on_top(self.top_switch.get())
+        if self.save_config:
+            self.save_config()
+
     def set_data(self, data):
         """设置页面数据"""
         self.game_entry.delete(0, END)
         self.game_entry.insert(0, data.get('game_window', 'Path of Exile'))
+        
+        # 设置置顶开关状态并触发置顶效果
+        always_on_top = data.get('always_on_top', False)
+        self.top_switch.set(always_on_top)
+        # 设置置顶状态
+        if self.main_window:
+            self.main_window.set_always_on_top(always_on_top)
         
         self.file_entry.delete(0, END)
         self.file_entry.insert(0, data.get('log_path', ''))
