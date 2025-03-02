@@ -5,6 +5,7 @@ from .tray_icon import TrayIcon
 from .pages import BasicConfigPage, ProcessConfigPage, PushManagePage, LogPage, CurrencyConfigPage, StatsPage
 from .pages.stash_test_page import StashTestPage
 from .pages.position_test_page import PositionTestPage
+from .pages.command_test_page import CommandTestPage
 from core.config import Config
 from core.log_monitor import LogMonitor
 from push.wxpusher import WxPusher
@@ -74,7 +75,8 @@ class MainWindow:
             ('触发日志', self._show_log, []),
             ('识别测试', None, [
                 ('仓库测试', self._show_stash_recognition),
-                ('定位测试', self._show_grid_recognition)
+                ('定位测试', self._show_grid_recognition),
+                ('命令测试', self._show_command_test)
             ])
         ]
         
@@ -148,6 +150,7 @@ class MainWindow:
                                                   lambda text: self.status_bar.config(text=text))
         self.grid_recognition_page = PositionTestPage(self.content_frame, self.log_message,
                                                     lambda text: self.status_bar.config(text=text))
+        self.command_test_page = CommandTestPage(self.content_frame, self.log_message)
         
         # 创建状态栏
         self.status_bar = ttk.Label(self.root, text="就绪", style='Status.TLabel')
@@ -219,6 +222,17 @@ class MainWindow:
             submenu_info = self.submenu_frames['识别测试']
             if not submenu_info['visible']:
                 self._toggle_submenu('识别测试')
+                
+    def _show_command_test(self):
+        """显示命令测试页面"""
+        self._hide_all_pages()
+        self.command_test_page.pack(fill=tk.BOTH, expand=True)
+        self._update_menu_state(6, '命令测试')  # 选中识别测试菜单和命令测试子菜单
+        # 确保二级菜单可见
+        if '识别测试' in self.submenu_frames:
+            submenu_info = self.submenu_frames['识别测试']
+            if not submenu_info['visible']:
+                self._toggle_submenu('识别测试')
         
     def _show_grid_recognition(self):
         """显示仓位识别页面"""
@@ -241,6 +255,7 @@ class MainWindow:
         self.log_page.pack_forget()
         self.stash_recognition_page.pack_forget()
         self.grid_recognition_page.pack_forget()
+        self.command_test_page.pack_forget()
         
     def _toggle_submenu(self, menu_text):
         """切换子菜单的显示状态"""

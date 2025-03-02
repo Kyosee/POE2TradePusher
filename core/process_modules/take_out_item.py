@@ -8,6 +8,7 @@ import win32ui
 import ctypes
 from ctypes import (Structure, c_ulong, c_ushort, c_short, c_long, 
                    POINTER, sizeof, CFUNCTYPE, c_void_p, windll, byref)
+import json
 from ..process_module import ProcessModule
 
 ULONG_PTR = POINTER(c_ulong)
@@ -73,7 +74,13 @@ class TakeOutItemModule(ProcessModule):
 
     def _get_window_name(self):
         """获取游戏窗口名称"""
-        return "Path of Exile 2"
+        try:
+            with open('config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                return config.get('game_window', 'Path of Exile 2')
+        except Exception as e:
+            self.logger.error(f"读取配置文件失败: {str(e)}")
+            return 'Path of Exile 2'
 
     def _find_window(self, window_name):
         """查找指定名称的窗口句柄"""
