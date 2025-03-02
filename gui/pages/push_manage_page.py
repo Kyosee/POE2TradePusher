@@ -1,12 +1,13 @@
 from tkinter import *
 from tkinter import ttk
 from gui.widgets.switch import Switch
+from gui.widgets.dialog import MessageDialog
+from ..utils import LoggingMixin, ConfigMixin, show_message
 
-class PushManagePage(ttk.Frame):
+class PushManagePage(ttk.Frame, LoggingMixin, ConfigMixin):
     def __init__(self, master, callback_log, callback_status):
-        super().__init__(master, style='Content.TFrame')
-        self.log_message = callback_log
-        self.status_bar = callback_status
+        ttk.Frame.__init__(self, master, style='Content.TFrame')
+        LoggingMixin.__init__(self, callback_log, callback_status)
         
         # 创建推送配置区域
         self._create_wxpusher_frame()  # WxPusher配置
@@ -128,16 +129,16 @@ class PushManagePage(ttk.Frame):
             self.log_message("WxPusher推送未启用", "WARN")
             return
             
-        config = self.get_data()
+        config = self.get_config_data()
         
         if not config.get('wxpusher', {}).get('app_token'):
             self.log_message("请先配置WxPusher的APP Token", "ERROR")
-            self.status_bar("❌ 缺少APP Token配置")
+            self.update_status("❌ 缺少APP Token配置")
             return
             
         if not config.get('wxpusher', {}).get('uid'):
             self.log_message("请先配置WxPusher的用户UID", "ERROR")
-            self.status_bar("❌ 缺少用户UID配置")
+            self.update_status("❌ 缺少用户UID配置")
             return
             
         self.log_message("正在测试WxPusher配置...", "INFO")
@@ -146,10 +147,10 @@ class PushManagePage(ttk.Frame):
         success, message = pusher.test()
         
         if success:
-            self.status_bar("✅ 测试推送发送成功")
+            self.update_status("✅ 测试推送发送成功")
             self.log_message(message, "INFO")
         else:
-            self.status_bar("❌ 测试推送发送失败")
+            self.update_status("❌ 测试推送发送失败")
             self.log_message(message, "ERROR")
             
     def test_email(self):
@@ -158,7 +159,7 @@ class PushManagePage(ttk.Frame):
             self.log_message("邮箱推送未启用", "WARN")
             return
             
-        config = self.get_data()
+        config = self.get_config_data()
         email_config = config.get('email', {})
         
         # 验证必填字段
@@ -173,7 +174,7 @@ class PushManagePage(ttk.Frame):
         for field, message in required.items():
             if not email_config.get(field):
                 self.log_message(message, "ERROR")
-                self.status_bar(f"❌ {message}")
+                self.update_status(f"❌ {message}")
                 return
                 
         self.log_message("正在测试邮箱配置...", "INFO")
@@ -182,14 +183,14 @@ class PushManagePage(ttk.Frame):
         success, message = pusher.test()
         
         if success:
-            self.status_bar("✅ 测试邮件发送成功")
+            self.update_status("✅ 测试邮件发送成功")
             self.log_message(message, "INFO")
         else:
-            self.status_bar("❌ 测试邮件发送失败")
+            self.update_status("❌ 测试邮件发送失败")
             self.log_message(message, "ERROR")
         
-    def get_data(self):
-        """获取页面数据"""
+    def get_config_data(self):
+        """获取配置数据"""
         return {
             'wxpusher': {
                 'enabled': self.wxpusher_enabled.get(),
@@ -208,7 +209,6 @@ class PushManagePage(ttk.Frame):
         
     def show_wxpusher_help(self):
         """显示WxPusher配置帮助"""
-        from tkinter import messagebox
         help_text = (
             "WxPusher配置说明：\n\n"
             "1. 访问 http://wxpusher.zjiecode.com 注册登录\n\n"
@@ -225,11 +225,10 @@ class PushManagePage(ttk.Frame):
             "   - 将获取到的 App Token 和 UID 填入对应输入框\n"
             "   - 点击测试按钮验证配置是否正确"
         )
-        messagebox.showinfo("WxPusher配置帮助", help_text)
+        MessageDialog(self, "WxPusher配置帮助", help_text)
         
     def show_email_help(self):
         """显示邮箱配置帮助"""
-        from tkinter import messagebox
         help_text = (
             "邮箱配置说明（以QQ邮箱为例）：\n\n"
             "1. SMTP服务器和端口：\n"
@@ -247,10 +246,10 @@ class PushManagePage(ttk.Frame):
             "   - 收件人邮箱：接收通知的邮箱地址\n\n"
             "4. 点击测试按钮验证配置是否正确"
         )
-        messagebox.showinfo("邮箱配置帮助", help_text)
+        MessageDialog(self, "邮箱配置帮助", help_text)
         
-    def set_data(self, data):
-        """设置页面数据"""
+    def set_config_data(self, data):
+        """设置配置数据"""
         # WxPusher配置
         wxpusher_data = data.get('wxpusher', {})
         self.wxpusher_enabled.set(wxpusher_data.get('enabled', True))

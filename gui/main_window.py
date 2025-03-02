@@ -273,9 +273,9 @@ class MainWindow:
         self.log_page.append_log(msg, "INFO" if success else "WARN")
         if success:
             # 应用配置到各个页面
-            self.basic_config_page.set_data(self.config.config)
-            self.currency_config_page.set_data(self.config.config)
-            self.push_manage_page.set_data(self.config.config)
+            self.basic_config_page.set_config_data(self.config.config)
+            self.currency_config_page.set_config_data(self.config.config)
+            self.push_manage_page.set_config_data(self.config.config)
         
     def save_config(self):
         """保存配置"""

@@ -1,15 +1,16 @@
 from tkinter import *
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from tkinter import TclError
 from PIL import Image, ImageTk
 import os
 import sys
+from ..utils import LoggingMixin, ConfigMixin, show_message, ask_yes_no
+from ..widgets.dialog import InputDialog
 
-class CurrencyConfigPage(ttk.Frame):
+class CurrencyConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
     def __init__(self, master, callback_log, callback_status, callback_save=None):
-        super().__init__(master, style='Content.TFrame')
-        self.log_message = callback_log
-        self.status_bar = callback_status
+        ttk.Frame.__init__(self, master, style='Content.TFrame')
+        LoggingMixin.__init__(self, callback_log, callback_status)
         self.save_config = callback_save
         self.currency_items = []  # 存储通货单位项的引用
         self.selected_currency_item = None
@@ -154,11 +155,6 @@ class CurrencyConfigPage(ttk.Frame):
         self.currency_canvas.bind("<Leave>", lambda e: self.currency_canvas.unbind_all("<MouseWheel>"))
         self.currency_entry.bind('<Return>', lambda e: self.add_currency())
         
-    def _show_currency_menu(self, event):
-        """显示通货单位右键菜单"""
-        if hasattr(self, 'selected_currency_item') and self.selected_currency_item.winfo_exists():
-            self.currency_menu.post(event.x_root, event.y_root)
-            
     def _setup_currency_menu(self):
         """设置通货单位右键菜单"""
         self.currency_menu = Menu(self, tearoff=0, font=('微软雅黑', 9))
@@ -218,75 +214,40 @@ class CurrencyConfigPage(ttk.Frame):
         if self.save_config:
             try:
                 self.save_config()
-                self.status_bar.config(text=f"✨ 已添加并保存通货单位: {currency}")
+                self.update_status(f"✨ 已添加并保存通货单位: {currency}")
             except Exception as e:
                 self.log_message(f"保存配置失败: {e}", "ERROR")
                 
     def edit_currency(self):
         """编辑选中的通货单位"""
-        if hasattr(self, 'selected_currency_item') and self.selected_currency_item.winfo_exists():
-            try:
-                current_currency = self.selected_currency_item.winfo_children()[1].cget("text")
-            except TclError:
-                return  # Widget no longer exists
-            dialog = Toplevel(self)
-            dialog.title("编辑通货单位")
-            dialog.geometry("300x140")
-            dialog.transient(self)
-            dialog.grab_set()
-            dialog.configure(bg='white')
+        if not hasattr(self, 'selected_currency_item') or not self.selected_currency_item.winfo_exists():
+            return
             
-            # 设置对话框样式
-            main_frame = ttk.Frame(dialog, style='Dialog.TFrame')
-            main_frame.pack(expand=True, fill='both', padx=2, pady=2)
+        try:
+            current_currency = self.selected_currency_item.winfo_children()[1].cget("text")
+        except TclError:
+            return  # Widget no longer exists
             
-            ttk.Label(main_frame, text="请输入新的通货单位：",
-                     font=('微软雅黑', 9)).pack(padx=10, pady=(10, 5))
-            
-            entry = ttk.Entry(main_frame, width=40, font=('微软雅黑', 9))
-            entry.insert(0, current_currency)
-            entry.pack(padx=10, pady=(0, 10))
-            
-            def save_edit():
-                new_currency = entry.get().strip()
-                if new_currency and new_currency != current_currency:
-                    # 检查是否已存在
-                    for item in self.currency_items:
-                        if item != self.selected_currency_item and \
-                           item.winfo_children()[1].cget("text") == new_currency:
-                            messagebox.showwarning("提示", "通货单位已存在")
-                            return
-                            
-                    # 更新通货单位
-                    self.selected_currency_item.destroy()
-                    self.currency_items.remove(self.selected_currency_item)
-                    new_item = self._create_currency_item(new_currency)
-                    self.currency_items.append(new_item)
-                    self.log_message(f"通货单位已更新: {current_currency} → {new_currency}")
-                    if self.save_config:
-                        self.save_config()
-                    dialog.destroy()
-                else:
-                    dialog.destroy()
-            
-            btn_frame = ttk.Frame(main_frame)
-            ttk.Button(btn_frame, text="✔️ 确定", command=save_edit, 
-                      style='Dialog.TButton').pack(side=LEFT, padx=5)
-            ttk.Button(btn_frame, text="❌ 取消", command=dialog.destroy, 
-                      style='Dialog.TButton').pack(side=LEFT, padx=5)
-            btn_frame.pack(pady=(0, 10))
-
-            # 居中对话框
-            dialog.update_idletasks()
-            width = dialog.winfo_width()
-            height = dialog.winfo_height()
-            x = (dialog.winfo_screenwidth() // 2) - (width // 2)
-            y = (dialog.winfo_screenheight() // 2) - (height // 2)
-            dialog.geometry(f'+{x}+{y}')
-            
-            entry.focus_set()
-            dialog.bind('<Return>', lambda e: save_edit())
-            dialog.bind('<Escape>', lambda e: dialog.destroy())
+        def save_edit(new_currency):
+            if new_currency and new_currency != current_currency:
+                # 检查是否已存在
+                for item in self.currency_items:
+                    if item != self.selected_currency_item and \
+                       item.winfo_children()[1].cget("text") == new_currency:
+                        show_message("提示", "通货单位已存在", "warning")
+                        return
+                        
+                # 更新通货单位
+                self.selected_currency_item.destroy()
+                self.currency_items.remove(self.selected_currency_item)
+                new_item = self._create_currency_item(new_currency)
+                self.currency_items.append(new_item)
+                self.log_message(f"通货单位已更新: {current_currency} → {new_currency}")
+                if self.save_config:
+                    self.save_config()
+                    
+        # 使用InputDialog替代
+        InputDialog(self, "编辑通货单位", "请输入新的通货单位：", current_currency, save_edit)
             
     def remove_selected_currency(self):
         """删除选中的通货单位"""
@@ -304,13 +265,13 @@ class CurrencyConfigPage(ttk.Frame):
             
     def clear_currencies(self):
         """清空通货单位"""
-        if messagebox.askyesno("确认清空", "确定要清空所有通货单位吗？\n此操作无法撤销"):
+        if ask_yes_no("确认清空", "确定要清空所有通货单位吗？\n此操作无法撤销"):
             for item in self.currency_items:
                 item.destroy()
             self.currency_items.clear()
             self.selected_currency_item = None
             self.log_message("已清空通货单位列表")
-            self.status_bar.config(text="✨ 已清空通货单位列表")
+            self.update_status("✨ 已清空通货单位列表")
             if self.save_config:
                 self.save_config()
             
@@ -321,12 +282,17 @@ class CurrencyConfigPage(ttk.Frame):
                 currency = self.selected_currency_item.winfo_children()[1].cget("text")
                 self.clipboard_clear()
                 self.clipboard_append(currency)
-                self.status_bar.config(text=f"已复制: {currency}")
+                self.update_status(f"已复制: {currency}")
             except TclError:
                 pass  # Widget no longer exists
+                
+    def _show_currency_menu(self, event):
+        """显示通货单位右键菜单"""
+        if hasattr(self, 'selected_currency_item') and self.selected_currency_item.winfo_exists():
+            self.currency_menu.post(event.x_root, event.y_root)
             
-    def get_data(self):
-        """获取页面数据"""
+    def get_config_data(self):
+        """获取配置数据"""
         currencies = []
         for item in self.currency_items:
             try:
@@ -336,8 +302,8 @@ class CurrencyConfigPage(ttk.Frame):
                 continue  # Skip invalid items
         return {'currencies': currencies}
         
-    def set_data(self, data):
-        """设置页面数据"""
+    def set_config_data(self, data):
+        """设置配置数据"""
         # 清空现有通货单位
         for item in self.currency_items:
             item.destroy()

@@ -1,13 +1,15 @@
 from tkinter import *
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog
 import os
 import re
+from ..utils import LoggingMixin, ConfigMixin, show_message, ask_yes_no
+from ..widgets.dialog import MessageDialog, InputDialog
 
-class BasicConfigPage(ttk.Frame):
-    def __init__(self, master, callback_log, callback_status, callback_save=None):
-        super().__init__(master, style='Content.TFrame')
-        self.log_message = callback_log
-        self.status_bar = callback_status
+class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
+    """基本配置页面"""
+    def __init__(self, master, log_callback, status_callback, callback_save=None):
+        ttk.Frame.__init__(self, master, style='Content.TFrame')
+        LoggingMixin.__init__(self, log_callback, status_callback)
         self.save_config = callback_save
         self.main_window = None  # 用于存储MainWindow引用
         
@@ -17,6 +19,23 @@ class BasicConfigPage(ttk.Frame):
         self._create_settings_frame()
         self._create_keywords_frame()
         self._setup_keyword_menu()
+        
+    def _create_game_frame(self):
+        """创建游戏窗口配置区域"""
+        self.game_frame = ttk.LabelFrame(self, text="游戏窗口配置")
+        ttk.Label(self.game_frame, text="窗口名称:", style='Frame.TLabel').grid(row=0, column=0, padx=6)
+        self.game_entry = ttk.Entry(self.game_frame, width=70)
+        self.game_entry.insert(0, "Path of Exile")
+        self.switch_btn = ttk.Button(self.game_frame, text="切换窗口", command=self._switch_to_game)
+        
+        # 布局游戏窗口配置区域
+        self.game_frame.pack(fill=X, padx=12, pady=6)
+        self.game_entry.grid(row=0, column=1, padx=6, sticky="ew")
+        self.switch_btn.grid(row=0, column=2, padx=6)
+        self.game_frame.columnconfigure(1, weight=1)
+        
+        # 绑定值变化事件
+        self.game_entry.bind('<KeyRelease>', lambda e: self._on_settings_change())
         
     def _create_file_frame(self):
         """创建文件配置区域"""
@@ -67,11 +86,6 @@ class BasicConfigPage(ttk.Frame):
         self.interval_spin.bind('<ButtonRelease-1>', lambda e: self._on_settings_change())
         self.push_interval_entry.bind('<KeyRelease>', lambda e: self._on_settings_change())
         
-    def _on_settings_change(self):
-        """处理设置值变化"""
-        if self.save_config:
-            self.save_config()
-            
     def _create_keywords_frame(self):
         """创建关键词管理区域"""
         self.keywords_frame = ttk.LabelFrame(self, text="关键词管理")
@@ -154,21 +168,6 @@ class BasicConfigPage(ttk.Frame):
         self.keyword_list.bind('<<ListboxSelect>>', lambda e: self.on_keyword_select())
         self.keyword_entry.bind('<Return>', lambda e: self.add_keyword())
         
-    def on_keyword_select(self):
-        """当选择关键词时自动填充测试区域"""
-        selection = self.keyword_list.curselection()
-        if selection:
-            kw = self.keyword_list.get(selection[0])
-            if "[消息模式]" in kw:
-                mode = "消息模式"
-                pattern = kw.replace("[消息模式]", "").strip()
-            else:
-                mode = "交易模式"
-                pattern = kw.replace("[交易模式]", "").strip()
-            self.mode_var.set(mode)
-            self.keyword_entry.delete(0, END)
-            self.keyword_entry.insert(0, pattern)
-        
     def _setup_keyword_menu(self):
         """设置关键词右键菜单"""
         self.keyword_menu = Menu(self, tearoff=0, font=('微软雅黑', 9))
@@ -186,20 +185,6 @@ class BasicConfigPage(ttk.Frame):
                                     
     def show_help(self):
         """显示帮助信息"""
-        help_dialog = Toplevel(self)
-        help_dialog.title("关键词帮助")
-        help_dialog.geometry("600x400")
-        help_dialog.transient(self)
-        help_dialog.grab_set()
-        
-        # 设置样式
-        main_frame = ttk.Frame(help_dialog, style='Dialog.TFrame')
-        main_frame.pack(expand=True, fill='both', padx=2, pady=2)
-        
-        help_text = Text(main_frame, wrap=WORD, padx=10, pady=10,
-                        font=('微软雅黑', 10))
-        help_text.pack(fill=BOTH, expand=True)
-        
         help_content = """消息模式：
 填写 來自 则日志中匹配到包含 來自 的消息就会推送，支持多关键词匹配用"|"进行分隔，如：來自|我想購買 则只会匹配日志中同时包含这两个关键词的行进行推送
 
@@ -217,21 +202,7 @@ class BasicConfigPage(ttk.Frame):
 @p2 位置2方向
 @p2_num 位置2坐标"""
         
-        help_text.insert('1.0', help_content)
-        help_text.config(state='disabled')
-        
-        # 确定按钮
-        ttk.Button(main_frame, text="确定", 
-                  command=help_dialog.destroy,
-                  style='Dialog.TButton').pack(pady=10)
-        
-        # 居中显示
-        help_dialog.update_idletasks()
-        width = help_dialog.winfo_width()
-        height = help_dialog.winfo_height()
-        x = (help_dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (help_dialog.winfo_screenheight() // 2) - (height // 2)
-        help_dialog.geometry(f'+{x}+{y}')
+        MessageDialog(self, "关键词帮助", help_content)
         
     def add_keyword(self, *args):
         """添加关键词"""
@@ -257,14 +228,14 @@ class BasicConfigPage(ttk.Frame):
         """测试关键词"""
         selection = self.keyword_list.curselection()
         if not selection:
-            messagebox.showwarning("提示", "请先选择要测试的关键词")
+            show_message("提示", "请先选择要测试的关键词", "warning")
             return
             
         keyword = self.keyword_list.get(selection[0])
         test_text = self.test_text.get('1.0', 'end-1c')
         
         if not test_text:
-            messagebox.showwarning("提示", "请输入要测试的文本")
+            show_message("提示", "请输入要测试的文本", "warning")
             return
             
         # 从关键词中提取模式
@@ -316,77 +287,33 @@ class BasicConfigPage(ttk.Frame):
     def edit_keyword(self):
         """编辑选中的关键词"""
         selection = self.keyword_list.curselection()
-        if selection:
-            current_keyword = self.keyword_list.get(selection[0])
-            dialog = Toplevel(self)
-            dialog.title("编辑关键词")
-            dialog.geometry("300x180")
-            dialog.transient(self)
-            dialog.grab_set()
-            dialog.configure(bg='white')
+        if not selection:
+            return
             
-            # 设置对话框样式
-            main_frame = ttk.Frame(dialog, style='Dialog.TFrame')
-            main_frame.pack(expand=True, fill='both', padx=2, pady=2)
+        current_keyword = self.keyword_list.get(selection[0])
+        # 从关键词中提取模式和内容
+        if "[消息模式]" in current_keyword:
+            mode = "消息模式"
+            pattern = current_keyword.replace("[消息模式]", "").strip()
+        else:
+            mode = "交易模式"
+            pattern = current_keyword.replace("[交易模式]", "").strip()
             
-            # 模式选择
-            if "[消息模式]" in current_keyword:
-                mode = "消息模式"
-                pattern = current_keyword.replace("[消息模式]", "").strip()
-            else:
-                mode = "交易模式"
-                pattern = current_keyword.replace("[交易模式]", "").strip()
-                
-            mode_var = StringVar(value=mode)
-            mode_combo = ttk.Combobox(main_frame, textvariable=mode_var,
-                                    values=["消息模式", "交易模式"],
-                                    state="readonly", width=10)
-            mode_combo.pack(padx=10, pady=(10, 5))
-            
-            ttk.Label(main_frame, text="请输入新的关键词：",
-                     font=('微软雅黑', 9)).pack(padx=10, pady=(5, 5))
-            
-            entry = ttk.Entry(main_frame, width=40, font=('微软雅黑', 9))
-            entry.insert(0, pattern)
-            entry.pack(padx=10, pady=(0, 10))
-            
-            def save_edit():
-                new_pattern = entry.get().strip()
-                new_mode = mode_var.get()
-                new_keyword = f"[{new_mode}] {new_pattern}"
-                
-                if new_pattern and new_keyword != current_keyword:
-                    if new_keyword not in self.keyword_list.get(0, END):
-                        self.keyword_list.delete(selection[0])
-                        self.keyword_list.insert(selection[0], new_keyword)
-                        self.log_message(f"关键词已更新: {current_keyword} → {new_keyword}")
-                        if self.save_config:
-                            self.save_config()
-                        dialog.destroy()
-                    else:
-                        messagebox.showwarning("提示", "关键词已存在")
+        def save_edit(new_pattern):
+            new_keyword = f"[{mode}] {new_pattern}"
+            if new_pattern and new_keyword != current_keyword:
+                if new_keyword not in self.keyword_list.get(0, END):
+                    self.keyword_list.delete(selection[0])
+                    self.keyword_list.insert(selection[0], new_keyword)
+                    self.log_message(f"关键词已更新: {current_keyword} → {new_keyword}")
+                    if self.save_config:
+                        self.save_config()
                 else:
-                    dialog.destroy()
-            
-            btn_frame = ttk.Frame(main_frame)
-            ttk.Button(btn_frame, text="✔️ 确定", command=save_edit, 
-                      style='Dialog.TButton').pack(side=LEFT, padx=5)
-            ttk.Button(btn_frame, text="❌ 取消", command=dialog.destroy, 
-                      style='Dialog.TButton').pack(side=LEFT, padx=5)
-            btn_frame.pack(pady=(0, 10))
-            
-            # 居中对话框
-            dialog.update_idletasks()
-            width = dialog.winfo_width()
-            height = dialog.winfo_height()
-            x = (dialog.winfo_screenwidth() // 2) - (width // 2)
-            y = (dialog.winfo_screenheight() // 2) - (height // 2)
-            dialog.geometry(f'+{x}+{y}')
-            
-            entry.focus_set()
-            dialog.bind('<Return>', lambda e: save_edit())
-            dialog.bind('<Escape>', lambda e: dialog.destroy())
-            
+                    show_message("提示", "关键词已存在", "warning")
+                    
+        # 使用InputDialog替代
+        InputDialog(self, "编辑关键词", "请输入新的关键词：", pattern, save_edit)
+
     def remove_selected_keyword(self):
         """删除选中的关键词"""
         selection = self.keyword_list.curselection()
@@ -399,10 +326,10 @@ class BasicConfigPage(ttk.Frame):
             
     def clear_keywords(self):
         """清空关键词"""
-        if messagebox.askyesno("确认清空", "确定要清空所有关键词吗？\n此操作无法撤销"):
+        if ask_yes_no("确认清空", "确定要清空所有关键词吗？\n此操作无法撤销"):
             self.keyword_list.delete(0, END)
             self.log_message("已清空关键词列表")
-            self.status_bar.config(text="✨ 已清空关键词列表")
+            self.update_status("✨ 已清空关键词列表")
             if self.save_config:
                 self.save_config()
             
@@ -420,7 +347,7 @@ class BasicConfigPage(ttk.Frame):
             keyword = self.keyword_list.get(selection[0])
             self.clipboard_clear()
             self.clipboard_append(keyword)
-            self.status_bar.config(text=f"已复制: {keyword}")
+            self.update_status(f"已复制: {keyword}")
             
     def select_file(self):
         """选择文件"""
@@ -432,45 +359,48 @@ class BasicConfigPage(ttk.Frame):
             if self.save_config:
                 self.save_config()
                 
-    # 获取/设置数据方法
-    def _create_game_frame(self):
-        """创建游戏窗口配置区域"""
-        self.game_frame = ttk.LabelFrame(self, text="游戏窗口配置")
-        ttk.Label(self.game_frame, text="窗口名称:", style='Frame.TLabel').grid(row=0, column=0, padx=6)
-        self.game_entry = ttk.Entry(self.game_frame, width=70)
-        self.game_entry.insert(0, "Path of Exile")
-        self.switch_btn = ttk.Button(self.game_frame, text="切换窗口", command=self._switch_to_game)
+    def validate_config(self):
+        """验证配置数据"""
+        data = self.get_config_data()
         
-        # 布局游戏窗口配置区域
-        self.game_frame.pack(fill=X, padx=12, pady=6)
-        self.game_entry.grid(row=0, column=1, padx=6, sticky="ew")
-        self.switch_btn.grid(row=0, column=2, padx=6)
-        self.game_frame.columnconfigure(1, weight=1)
-        
-        # 绑定值变化事件
-        self.game_entry.bind('<KeyRelease>', lambda e: self._on_settings_change())
-
-    def _switch_to_game(self):
-        """切换到游戏窗口"""
-        window_name = self.game_entry.get().strip()
-        import win32gui
-        import win32con
-        
-        def callback(hwnd, _):
-            if win32gui.GetWindowText(hwnd) == window_name:
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                win32gui.SetForegroundWindow(hwnd)
-                return False
-            return True
+        if not data.get('log_path'):
+            return False, "请选择日志文件"
+            
+        if not data.get('keywords', []):
+            return False, "请至少添加一个关键词"
             
         try:
-            win32gui.EnumWindows(callback, None)
-            self.log_message(f"已切换到游戏窗口: {window_name}")
-        except Exception as e:
-            self.log_message(f"切换窗口失败: {str(e)}", "ERROR")
+            interval = int(data.get('interval', 0))
+            if interval < 500 or interval > 5000:
+                return False, "检测间隔必须在500-5000毫秒之间"
+        except ValueError:
+            return False, "无效的检测间隔值"
             
-    def get_data(self):
-        """获取页面数据"""
+        try:
+            push_interval = int(data.get('push_interval', 0))
+            if push_interval < 0:
+                return False, "推送间隔不能为负数"
+        except ValueError:
+            return False, "无效的推送间隔值"
+            
+        return True, None
+
+    def _on_settings_change(self):
+        """处理设置值变化"""
+        if self.save_config:
+            self.save_config()
+            
+    def _switch_to_game(self):
+        """切换到游戏窗口"""
+        from ..utils import switch_to_window
+        window_name = self.game_entry.get().strip()
+        if switch_to_window(window_name):
+            self.log_message(f"已切换到游戏窗口: {window_name}")
+        else:
+            self.log_message(f"切换窗口失败: {window_name}", "ERROR")
+            
+    def get_config_data(self):
+        """获取配置数据"""
         keywords = []
         for i in range(self.keyword_list.size()):
             kw = self.keyword_list.get(i)
@@ -495,19 +425,8 @@ class BasicConfigPage(ttk.Frame):
             'always_on_top': self.top_switch.get()
         }
         
-    def set_main_window(self, main_window):
-        """设置MainWindow引用"""
-        self.main_window = main_window
-
-    def _on_top_switch_change(self, *args):
-        """处理置顶开关状态变化"""
-        if self.main_window:
-            self.main_window.set_always_on_top(self.top_switch.get())
-        if self.save_config:
-            self.save_config()
-
-    def set_data(self, data):
-        """设置页面数据"""
+    def set_config_data(self, data):
+        """设置配置数据"""
         self.game_entry.delete(0, END)
         self.game_entry.insert(0, data.get('game_window', 'Path of Exile'))
         
@@ -535,3 +454,14 @@ class BasicConfigPage(ttk.Frame):
                 mode = kw.get('mode', '消息模式')
                 pattern = kw.get('pattern', '')
                 self.keyword_list.insert(END, f"[{mode}] {pattern}")
+    
+    def set_main_window(self, main_window):
+        """设置MainWindow引用"""
+        self.main_window = main_window
+
+    def _on_top_switch_change(self, *args):
+        """处理置顶开关状态变化"""
+        if self.main_window:
+            self.main_window.set_always_on_top(self.top_switch.get())
+        if self.save_config:
+            self.save_config()
