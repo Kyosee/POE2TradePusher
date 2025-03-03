@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, 
                                     QTextEdit, QPushButton, QFileDialog)
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QTextCharFormat, QColor, QTextCursor
 import time
 
@@ -10,8 +10,16 @@ class LogPage(QWidget):
         self.log_message = callback_log
         self.status_bar = callback_status
         
+        # 创建主布局
         self.main_layout = QHBoxLayout(self)
         self.main_layout.setContentsMargins(12, 6, 12, 6)
+        
+        # 初始化日志缓冲区和定时器
+        self.log_buffer = []
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self._flush_log_buffer)
+        self.update_timer.setInterval(100)  # 100ms刷新一次
+        self.update_timer.start()
         
         self._create_log_area()
         
@@ -21,6 +29,7 @@ class LogPage(QWidget):
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
         self.log_area.setFont(self.font())
+        self.log_area.document().setMaximumBlockCount(5000)  # 限制最大行数
         
         # 设置样式
         self.log_area.setStyleSheet("""
@@ -78,31 +87,40 @@ class LogPage(QWidget):
     def clear_log(self):
         """清空日志区域"""
         self.log_area.clear()
+        self.log_buffer.clear()
         self.status_bar("日志已清空")
         
     def append_log(self, message, level="INFO"):
-        """添加日志条目"""
-        # 创建格式
-        format = QTextCharFormat()
-        format.setForeground(QColor(self._get_level_color(level)))
+        """添加日志条目到缓冲区"""
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = {
+            'timestamp': timestamp,
+            'level': level,
+            'message': message,
+            'color': self._get_level_color(level)
+        }
+        self.log_buffer.append(log_entry)
         
-        # 创建条目背景格式
-        entry_format = QTextCharFormat()
-        entry_format.setBackground(QColor('#FBFBFB'))
-        
-        # 获取光标
+    def _flush_log_buffer(self):
+        """将缓冲区的日志刷新到界面"""
+        if not self.log_buffer:
+            return
+            
         cursor = self.log_area.textCursor()
         cursor.movePosition(QTextCursor.End)
         
-        # 插入日志条目
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        log_entry = f"[{timestamp}] [{level}] {message}\n"
+        # 批量处理日志条目
+        for entry in self.log_buffer:
+            # 设置文本颜色
+            format = QTextCharFormat()
+            format.setForeground(QColor(entry['color']))
+            
+            # 构造并插入日志文本
+            log_text = f"[{entry['timestamp']}] [{entry['level']}] {entry['message']}\n"
+            cursor.insertText(log_text, format)
         
-        # 应用格式并插入文本
-        cursor.insertText(log_entry, format)
-        
-        # 插入分隔行
-        cursor.insertText("\n")
+        # 清空缓冲区
+        self.log_buffer.clear()
         
         # 滚动到底部
         self.log_area.setTextCursor(cursor)
@@ -126,10 +144,13 @@ class LogPage(QWidget):
         
     def get_config_data(self):
         """获取页面数据"""
-        # 日志页面不需要保存数据
         return {}
         
     def set_config_data(self, data):
         """设置页面数据"""
-        # 日志页面不需要恢复数据
         pass
+        
+    def closeEvent(self, event):
+        """窗口关闭事件"""
+        self.update_timer.stop()
+        super().closeEvent(event)

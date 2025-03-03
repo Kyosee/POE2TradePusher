@@ -29,7 +29,7 @@ class ServerChan(PushBase):
                 
             # 构造消息
             title = f"🔔 日志报警 [{keyword}]"
-            self.log_callback(f"推送内容: {title}\n{content}", "ALERT")
+            self.log_callback(f"Server酱推送内容: {title}\n{content}", "ALERT")
             
             # 发送请求
             send_key = self.config.get('serverchan', {}).get('send_key')

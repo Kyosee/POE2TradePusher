@@ -32,7 +32,7 @@ class QmsgChan(PushBase):
                 
             # 构造消息
             message = f"🔔 日志报警 [{keyword}]\n{content}"
-            self.log_callback(f"推送内容: {message}", "ALERT")
+            self.log_callback(f"Qmsg酱推送内容: {message}", "ALERT")
             
             # 发送请求
             key = self.config.get('qmsg', {}).get('key')

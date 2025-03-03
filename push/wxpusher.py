@@ -32,7 +32,7 @@ class WxPusher(PushBase):
                 
             # 构造消息
             message = f"🔔 日志报警 [{keyword}]\n{content}"
-            self.log_callback(f"推送内容: {message}", "ALERT")
+            self.log_callback(f"WxPusher推送内容: {message}", "ALERT")
             
             # 发送请求
             response = requests.post(
@@ -51,11 +51,11 @@ class WxPusher(PushBase):
             if result["code"] != 1000:
                 raise Exception(result["msg"])
                 
-            self.log_callback("推送成功", "INFO")
+            self.log_callback("WxPusher推送成功", "INFO")
             return True, "推送成功"
             
         except Exception as e:
-            error_msg = f"推送失败: {str(e)}"
+            error_msg = f"WxPusher推送失败: {str(e)}"
             self.log_callback(error_msg, "ERROR")
             return False, error_msg
             
