@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QPushButton, QLabel, 
                                     QVBoxLayout, QHBoxLayout, QFrame, QMessageBox)
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon
 from .styles import Styles
 from .tray_icon import TrayIcon
@@ -14,6 +14,7 @@ from core.log_monitor import LogMonitor
 from core.auto_trade import AutoTrade
 from push.wxpusher import WxPusher
 from push.email_pusher import EmailPusher
+from .widgets.toast import show_toast, Toast
 
 class MainWindow(QMainWindow):
     """主窗口类"""
@@ -36,6 +37,9 @@ class MainWindow(QMainWindow):
         self.monitoring = False
         self.current_menu = None
         self.current_submenu = None  # 当前选中的子菜单
+        
+        # 提前初始化对话框，避免首次弹窗卡顿
+        self._pre_init_dialogs()
         
         # 创建中央窗口部件
         self.central_widget = QWidget()
@@ -69,6 +73,15 @@ class MainWindow(QMainWindow):
         
         # 默认显示基本配置页面
         self._show_basic_config()
+        
+    def _pre_init_dialogs(self):
+        """预先初始化对话框组件，避免首次显示时卡顿"""
+        # 创建并隐藏一个消息框，触发Qt组件的预加载
+        self.message_box = QMessageBox(self)
+        self.message_box.setWindowTitle("初始化")
+        self.message_box.setText("正在初始化组件...")
+        self.message_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        # 不显示对话框，只创建实例
         
     def create_widgets(self):
         """创建界面组件"""
@@ -511,7 +524,8 @@ class MainWindow(QMainWindow):
         basic_success, basic_message = self.basic_config_page.validate_config()
         if not basic_success:
             self.log_page.append_log(basic_message, "ERROR")
-            QMessageBox.critical(self, "设置不完整", basic_message)
+            # 使用Toast组件显示错误
+            show_toast(self, "设置不完整", basic_message, Toast.ERROR)
             return False
 
         # 验证是否启用了至少一种推送方式
@@ -522,11 +536,16 @@ class MainWindow(QMainWindow):
         if not wxpusher_enabled and not email_enabled:
             msg = "请至少启用一种推送方式"
             self.log_page.append_log(msg, "ERROR")
-            QMessageBox.critical(self, "设置不完整", msg)
+            # 使用Toast组件显示错误
+            show_toast(self, "设置不完整", msg, Toast.ERROR)
             return False
         
         return True
-        
+    
+    def show_error_message(self, title, message):
+        """显示错误消息对话框，使用Toast替代QMessageBox"""
+        show_toast(self, title, message, Toast.ERROR)
+    
     def log_message(self, message, level="INFO"):
         """添加消息到日志区域"""
         self.log_page.append_log(message, level)

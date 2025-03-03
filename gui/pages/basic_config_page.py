@@ -232,6 +232,16 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
             if self.keyword_list.item(i).text() == formatted_keyword:
                 self.log_message(f"重复关键词: {keyword}", "WARN")
                 return
+        
+        # 限制交易模式的关键词只能有一个
+        if mode == "交易模式":
+            # 检查是否已经存在交易模式的关键词
+            for i in range(self.keyword_list.count()):
+                item_text = self.keyword_list.item(i).text()
+                if "[交易模式]" in item_text:
+                    show_message("限制提示", "交易模式只能设置一个关键词模板。\n如需修改，请先删除现有的交易模式关键词。", "warning")
+                    self.log_message("交易模式只能有一个关键词模板", "WARN")
+                    return
             
         self.keyword_list.addItem(formatted_keyword)
         self.keyword_entry.clear()
@@ -403,7 +413,7 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         """切换到游戏窗口"""
         from ..utils import switch_to_window
         window_name = self.game_entry.text().strip()
-        if switch_to_window(window_name):
+        if switch_to_window(window_name, self):
             self.log_message(f"已切换到游戏窗口: {window_name}")
         else:
             self.log_message(f"切换窗口失败: {window_name}", "ERROR")

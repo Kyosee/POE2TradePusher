@@ -55,6 +55,35 @@ class AutoTrade:
         self.take_out_item = TakeOutItemModule()
 
         self.logger = logging.getLogger("AutoTrade")
+        
+        # 添加Toast提示功能
+        try:
+            from gui.widgets.toast import show_toast, Toast
+            self.has_toast = True
+            self.show_toast = show_toast
+            self.Toast = Toast
+            # 保存原始error方法
+            self._original_error = self.logger.error
+            # 重写error方法
+            self.logger.error = self._error_with_toast
+        except ImportError:
+            self.has_toast = False
+            
+    def _error_with_toast(self, msg, *args, **kwargs):
+        """带Toast提示的错误日志方法"""
+        # 调用原始的error方法记录日志
+        self._original_error(msg, *args, **kwargs)
+        
+        # 如果Toast组件可用，显示Toast提示
+        if self.has_toast:
+            # 获取主窗口实例（如果存在）
+            from PySide6.QtWidgets import QApplication
+            parent = None
+            if QApplication.instance() and QApplication.activeWindow():
+                parent = QApplication.activeWindow()
+            
+            # 显示Toast提示
+            self.show_toast(parent, "交易错误", str(msg), self.Toast.ERROR)
 
     def set_config(self, config: TradeConfig):
         """更新交易配置"""

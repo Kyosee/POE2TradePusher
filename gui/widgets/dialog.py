@@ -42,91 +42,73 @@ class BaseDialog(QDialog):
         else:
             super().keyPressEvent(event)
 
-class MessageDialog(BaseDialog):
-    """消息对话框，用于显示帮助信息等长文本内容"""
-    def __init__(self, parent, title, message, width=600, height=400):
-        super().__init__(parent, title, width, height)
+class MessageDialog(QDialog):
+    """显示消息的对话框"""
+    def __init__(self, parent, title, message, width=400, height=300):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumSize(width, height)
         
         # 创建布局
-        layout = QVBoxLayout(self.main_frame)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout(self)
         
-        # 创建文本区域
-        self.text = QTextEdit()
-        self.text.setFont(QFont("微软雅黑", 10))
-        self.text.setReadOnly(True)
-        self.text.setPlainText(message)
-        self.text.setContentsMargins(10, 10, 10, 10)
-        layout.addWidget(self.text)
+        # 添加消息显示区域
+        self.text_area = QTextEdit()
+        self.text_area.setReadOnly(True)
+        self.text_area.setText(message)
+        layout.addWidget(self.text_area)
         
-        # 确定按钮
-        btn = QPushButton("确定")
-        btn.setProperty('class', 'normal-button')
-        btn.clicked.connect(self.close)
-        btn.setFixedWidth(80)
+        # 添加确定按钮
+        button_layout = QHBoxLayout()
+        ok_button = QPushButton("确定")
+        ok_button.clicked.connect(self.accept)
+        button_layout.addStretch()
+        button_layout.addWidget(ok_button)
         
-        # 按钮容器
-        btn_container = QWidget()
-        btn_layout = QHBoxLayout(btn_container)
-        btn_layout.addWidget(btn)
-        btn_layout.setContentsMargins(0, 0, 0, 10)
-        layout.addWidget(btn_container, alignment=Qt.AlignCenter)
-        
-class InputDialog(BaseDialog):
-    """输入对话框，用于编辑单个值"""
-    def __init__(self, parent, title, prompt, initial_value="", callback=None):
-        super().__init__(parent, title)
-        
-        # 保存回调函数
-        self._callback = callback
+        layout.addLayout(button_layout)
+
+class InputDialog(QDialog):
+    """输入对话框"""
+    def __init__(self, parent, title, prompt, default_text="", callback=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.callback = callback
         
         # 创建布局
-        layout = QVBoxLayout(self.main_frame)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout = QVBoxLayout(self)
         
-        # 提示文本
-        prompt_label = QLabel(prompt)
-        prompt_label.setFont(QFont("微软雅黑", 9))
-        layout.addWidget(prompt_label)
+        # 添加提示文本
+        layout.addWidget(QLabel(prompt))
         
-        # 输入框
-        self.entry = QLineEdit()
-        self.entry.setFont(QFont("微软雅黑", 9))
-        self.entry.setText(initial_value)
-        self.entry.setFixedWidth(300)
-        layout.addWidget(self.entry)
+        # 添加输入框
+        self.input_field = QLineEdit()
+        self.input_field.setText(default_text)
+        self.input_field.selectAll()
+        layout.addWidget(self.input_field)
         
-        # 按钮容器
-        btn_container = QWidget()
-        btn_layout = QHBoxLayout(btn_container)
-        btn_layout.setContentsMargins(0, 10, 0, 0)
-        
-        # 确定按钮
-        confirm_btn = QPushButton("✔️ 确定")
-        confirm_btn.setProperty('class', 'normal-button')
-        confirm_btn.clicked.connect(lambda: self._on_confirm(callback))
-        btn_layout.addWidget(confirm_btn)
+        # 添加按钮区域
+        button_layout = QHBoxLayout()
         
         # 取消按钮
-        cancel_btn = QPushButton("❌ 取消")
-        cancel_btn.setProperty('class', 'danger-button')
-        cancel_btn.clicked.connect(self.close)
-        btn_layout.addWidget(cancel_btn)
+        cancel_button = QPushButton("取消")
+        cancel_button.clicked.connect(self.reject)
         
-        layout.addWidget(btn_container, alignment=Qt.AlignCenter)
+        # 确定按钮
+        ok_button = QPushButton("确定")
+        ok_button.clicked.connect(self.accept_input)
         
-        # 设置焦点
-        self.entry.setFocus()
+        button_layout.addStretch()
+        button_layout.addWidget(cancel_button)
+        button_layout.addWidget(ok_button)
         
-    def _on_confirm(self, callback):
-        """确认按钮点击处理"""
-        if callback:
-            callback(self.entry.text().strip())
-        self.close()
+        layout.addLayout(button_layout)
         
-    def keyPressEvent(self, event):
-        """处理按键事件"""
-        if event.key() == Qt.Key_Return:
-            self._on_confirm(self._callback)
-        else:
-            super().keyPressEvent(event)
+        # 设置默认按钮和回车键触发
+        ok_button.setDefault(True)
+        self.input_field.returnPressed.connect(self.accept_input)
+    
+    def accept_input(self):
+        """接受输入内容并回调"""
+        if self.callback:
+            self.callback(self.input_field.text())
+        self.accept()

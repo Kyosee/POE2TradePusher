@@ -1,41 +1,37 @@
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QMessageBox, QApplication
 from PySide6.QtCore import Qt
 import win32gui
 import win32con
+from .widgets.toast import show_toast, Toast
 
-def show_message(title, message, level="info"):
-    """统一的消息框显示函数"""
+def show_message(title, message, type_="info", parent=None):
+    """显示消息提示"""
+    # 使用新的Toast组件替代QMessageBox
+    if not parent and QApplication.activeWindow():
+        parent = QApplication.activeWindow()
+    
+    # 映射消息类型到Toast类型
+    toast_type_map = {
+        "info": Toast.INFO,
+        "warning": Toast.WARNING,
+        "error": Toast.ERROR,
+        "success": Toast.SUCCESS
+    }
+    toast_type = toast_type_map.get(type_, Toast.INFO)
+    
+    # 显示Toast提示
+    show_toast(parent, title, message, toast_type)
+
+def ask_yes_no(title, question):
+    """显示是否确认对话框"""
     msg_box = QMessageBox()
     msg_box.setWindowTitle(title)
-    msg_box.setText(message)
+    msg_box.setText(question)
+    msg_box.setIcon(QMessageBox.Question)
+    msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+    msg_box.setDefaultButton(QMessageBox.No)
     
-    if level == "error":
-        msg_box.setIcon(QMessageBox.Critical)
-    elif level == "warning":
-        msg_box.setIcon(QMessageBox.Warning)
-    else:
-        msg_box.setIcon(QMessageBox.Information)
-    
-    # 获取活动窗口并检查是否有置顶标志
-    from PySide6.QtWidgets import QApplication
-    active_window = QApplication.activeWindow()
-    if active_window and active_window.windowFlags() & Qt.WindowStaysOnTopHint:
-        msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowStaysOnTopHint)
-        
-    msg_box.exec_()
-
-def ask_yes_no(title, message):
-    """统一的确认对话框函数"""
-    msg_box = QMessageBox(QMessageBox.Question, title, message, QMessageBox.Yes | QMessageBox.No)
-    
-    # 获取活动窗口并检查是否有置顶标志
-    from PySide6.QtWidgets import QApplication
-    active_window = QApplication.activeWindow()
-    if active_window and active_window.windowFlags() & Qt.WindowStaysOnTopHint:
-        msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowStaysOnTopHint)
-    
-    reply = msg_box.exec_()
-    return reply == QMessageBox.Yes
+    return msg_box.exec() == QMessageBox.Yes
 
 def find_window(window_name):
     """查找窗口句柄"""
@@ -54,17 +50,52 @@ def find_window(window_name):
     
     return result[0]
 
-def switch_to_window(window_name):
-    """切换到指定窗口"""
-    hwnd = find_window(window_name)
-    if hwnd:
-        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+def switch_to_window(window_name, current_widget=None):
+    """
+    切换到指定名称的窗口
+    
+    Args:
+        window_name: 窗口名称
+        current_widget: 当前小部件，用于显示Toast
+        
+    Returns:
+        bool: 切换是否成功
+    """
+    if not window_name:
+        if current_widget:
+            show_toast(current_widget, "错误", "窗口名称不能为空", Toast.ERROR)
+        return False
+        
+    try:
+        import win32gui
+        import win32con
+
+        # 查找窗口
+        hwnd = win32gui.FindWindow(None, window_name)
+        if hwnd == 0:
+            if current_widget:
+                show_toast(current_widget, "错误", f"找不到窗口: {window_name}", Toast.ERROR)
+            return False
+
+        # 如果窗口最小化，则恢复它
+        if win32gui.IsIconic(hwnd):
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            
+        # 将窗口置于前台
         win32gui.SetForegroundWindow(hwnd)
+        
+        # 显示成功Toast
+        if current_widget:
+            show_toast(current_widget, "成功", f"已切换到窗口: {window_name}", Toast.SUCCESS)
+            
         return True
-    return False
+    except Exception as e:
+        if current_widget:
+            show_toast(current_widget, "错误", f"切换窗口失败: {str(e)}", Toast.ERROR)
+        return False
 
 class ConfigMixin:
-    """配置管理混入类"""
+    """配置操作混入类"""
     def init_config(self):
         """初始化配置对象"""
         from core.config import Config

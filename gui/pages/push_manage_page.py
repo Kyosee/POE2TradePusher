@@ -2,10 +2,11 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                     QPushButton, QLineEdit, QFrame, QGridLayout,
                                     QScrollArea)
 from PySide6.QtCore import Qt
+from ..utils import LoggingMixin, ConfigMixin, show_message
 from gui.widgets.switch import Switch
 from gui.widgets.dialog import MessageDialog
-from ..utils import LoggingMixin, ConfigMixin, show_message
 from utils.help_texts import WXPUSHER_HELP, SERVERCHAN_HELP, QMSG_HELP, EMAIL_HELP
+from gui.widgets.toast import Toast
 
 class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
     def __init__(self, master, callback_log, callback_status):
@@ -298,6 +299,7 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         """测试WxPusher配置"""
         if not self.wxpusher_enabled.isChecked():
             self.log_message("WxPusher推送未启用", "WARN")
+            show_message("提示", "WxPusher推送未启用", "warning", self)
             return
             
         config = self.get_config_data()
@@ -305,14 +307,17 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         if not config.get('wxpusher', {}).get('app_token'):
             self.log_message("请先配置WxPusher的APP Token", "ERROR")
             self.update_status("❌ 缺少APP Token配置")
+            show_message("错误", "请先配置WxPusher的APP Token", "error", self)
             return
             
         if not config.get('wxpusher', {}).get('uid'):
             self.log_message("请先配置WxPusher的用户UID", "ERROR")
             self.update_status("❌ 缺少用户UID配置")
+            show_message("错误", "请先配置WxPusher的用户UID", "error", self)
             return
             
         self.log_message("正在测试WxPusher配置...", "INFO")
+        show_message("测试", "正在发送WxPusher测试消息...", "info", self)
         from push.wxpusher import WxPusher
         pusher = WxPusher(config, self.log_message)
         success, message = pusher.test()
@@ -320,14 +325,17 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         if success:
             self.update_status("✅ 测试推送发送成功")
             self.log_message(message, "INFO")
+            show_message("成功", "WxPusher测试推送发送成功", "success", self)
         else:
             self.update_status("❌ 测试推送发送失败")
             self.log_message(message, "ERROR")
+            show_message("错误", f"WxPusher测试推送失败: {message}", "error", self)
             
     def test_email(self):
         """测试邮箱配置"""
         if not self.email_enabled.isChecked():
             self.log_message("邮箱推送未启用", "WARN")
+            show_message("提示", "邮箱推送未启用", "warning", self)
             return
             
         config = self.get_config_data()
@@ -346,9 +354,11 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
             if not email_config.get(field):
                 self.log_message(message, "ERROR")
                 self.update_status(f"❌ {message}")
+                show_message("错误", message, "error", self)
                 return
                 
         self.log_message("正在测试邮箱配置...", "INFO")
+        show_message("测试", "正在发送测试邮件...", "info", self)
         from push.email_pusher import EmailPusher
         pusher = EmailPusher(config, self.log_message)
         success, message = pusher.test()
@@ -356,14 +366,17 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         if success:
             self.update_status("✅ 测试邮件发送成功")
             self.log_message(message, "INFO")
+            show_message("成功", "测试邮件发送成功", "success", self)
         else:
             self.update_status("❌ 测试邮件发送失败")
             self.log_message(message, "ERROR")
+            show_message("错误", f"测试邮件发送失败: {message}", "error", self)
 
     def test_serverchan(self):
         """测试Server酱配置"""
         if not self.serverchan_enabled.isChecked():
             self.log_message("Server酱推送未启用", "WARN")
+            show_message("提示", "Server酱推送未启用", "warning", self)
             return
             
         config = self.get_config_data()
@@ -371,9 +384,11 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         if not config.get('serverchan', {}).get('send_key'):
             self.log_message("请先配置Server酱的SendKey", "ERROR")
             self.update_status("❌ 缺少SendKey配置")
+            show_message("错误", "请先配置Server酱的SendKey", "error", self)
             return
             
         self.log_message("正在测试Server酱配置...", "INFO")
+        show_message("测试", "正在发送Server酱测试消息...", "info", self)
         from push.serverchan import ServerChan
         pusher = ServerChan(config, self.log_message)
         success, message = pusher.test()
@@ -381,14 +396,17 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         if success:
             self.update_status("✅ 测试推送发送成功")
             self.log_message(message, "INFO")
+            show_message("成功", "Server酱测试推送发送成功", "success", self)
         else:
             self.update_status("❌ 测试推送发送失败")
             self.log_message(message, "ERROR")
+            show_message("错误", f"Server酱测试推送失败: {message}", "error", self)
 
     def test_qmsg(self):
         """测试Qmsg酱配置"""
         if not self.qmsg_enabled.isChecked():
             self.log_message("Qmsg酱推送未启用", "WARN")
+            show_message("提示", "Qmsg酱推送未启用", "warning", self)
             return
             
         config = self.get_config_data()
@@ -397,14 +415,17 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         if not qmsg_config.get('key'):
             self.log_message("请先配置Qmsg酱的Key", "ERROR")
             self.update_status("❌ 缺少Key配置")
+            show_message("错误", "请先配置Qmsg酱的Key", "error", self)
             return
             
         if not qmsg_config.get('qq'):
             self.log_message("请先配置接收QQ", "ERROR")
             self.update_status("❌ 缺少QQ配置")
+            show_message("错误", "请先配置接收QQ", "error", self)
             return
             
         self.log_message("正在测试Qmsg酱配置...", "INFO")
+        show_message("测试", "正在发送Qmsg酱测试消息...", "info", self)
         from push.qmsgchan import QmsgChan
         pusher = QmsgChan(config, self.log_message)
         success, message = pusher.test()
@@ -412,9 +433,11 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         if success:
             self.update_status("✅ 测试推送发送成功")
             self.log_message(message, "INFO")
+            show_message("成功", "Qmsg酱测试推送发送成功", "success", self)
         else:
             self.update_status("❌ 测试推送发送失败")
             self.log_message(message, "ERROR")
+            show_message("错误", f"Qmsg酱测试推送失败: {message}", "error", self)
         
     def get_config_data(self):
         """获取配置数据"""
@@ -447,26 +470,31 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         """显示WxPusher配置帮助"""
         dialog = MessageDialog(self, "WxPusher配置帮助", WXPUSHER_HELP)
         dialog.exec()  # 使用exec()方法显示模态对话框
+        show_message("帮助", "已显示WxPusher配置帮助", "info", self)
         
     def show_email_help(self):
         """显示邮箱配置帮助"""
         dialog = MessageDialog(self, "邮箱配置帮助", EMAIL_HELP)
         dialog.exec()  # 使用exec()方法显示模态对话框
+        show_message("帮助", "已显示邮箱配置帮助", "info", self)
 
     def show_serverchan_help(self):
         """显示Server酱配置帮助"""
         dialog = MessageDialog(self, "Server酱配置帮助", SERVERCHAN_HELP)
         dialog.exec()  # 使用exec()方法显示模态对话框
+        show_message("帮助", "已显示Server酱配置帮助", "info", self)
 
     def show_qmsg_help(self):
         """显示Qmsg酱配置帮助"""
         dialog = MessageDialog(self, "Qmsg酱配置帮助", QMSG_HELP)
         dialog.exec()  # 使用exec()方法显示模态对话框
+        show_message("帮助", "已显示Qmsg酱配置帮助", "info", self)
         
     def _on_config_change(self):
         """配置变更处理"""
         if hasattr(self, 'save_config') and self.save_config:
             self.save_config()
+            show_message("保存", "配置已更新", "success", self)
 
     def set_config_data(self, data):
         """设置配置数据"""
