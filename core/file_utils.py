@@ -136,17 +136,3 @@ class FileUtils:
     def get_encoding_info(self):
         """获取当前编码信息"""
         return self.current_encoding.upper()
-
-    def extract_content(self, line):
-        """提取内容"""
-        markers = ['@來自', '@来自']  # 支持简繁体
-        for marker in markers:
-            index = line.find(marker)
-            if index != -1:
-                # 提取冒号后的内容（如果存在）
-                colon_index = line.find(':', index)
-                if colon_index != -1:
-                    return line[colon_index+1:].strip()
-                # 如果没有冒号，直接取标记后的内容
-                return line[index + len(marker):].strip()
-        return line
