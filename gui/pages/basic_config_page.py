@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (QWidget, QFrame, QVBoxLayout, QHBoxLayout,
                                     QComboBox)
 from PySide6.QtCore import Qt, Signal
 from ..utils import LoggingMixin, ConfigMixin, show_message, ask_yes_no
+from utils.help_texts import KEYWORD_HELP
 from ..widgets.dialog import MessageDialog, InputDialog
 from ..widgets.switch import Switch
 import os
@@ -213,24 +214,7 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
                                     
     def show_help(self):
         """显示帮助信息"""
-        help_content = """消息模式：
-填写 来自 则日志中匹配到包含 来自 的消息就会推送，支持多关键词匹配用"|"进行分隔，如：来自|我想購買 则只会匹配日志中同时包含这两个关键词的行进行推送
-
-交易模式：
-示例 *来自 {@user}: 你好，我想購買 {@item} 標價 {@price} {@currency} 在 {@mode} (倉庫頁 "{@tab}"; 位置: {@p1} {@p1_num}, {@p2} {@p2_num})
-*代表会变化的任意内容（因为时间和客户端ID会变化）
-@user 玩家昵称
-@item 装备名称
-@price 通货数量
-@currency 通货单位
-@mode 游戏模式
-@tab 仓库页
-@p1 位置1方向
-@p1_num 位置1坐标
-@p2 位置2方向
-@p2_num 位置2坐标"""
-        
-        dialog = MessageDialog(self, "关键词帮助", help_content)
+        dialog = MessageDialog(self, "关键词帮助", KEYWORD_HELP)
         dialog.show()
 
     def add_keyword(self):

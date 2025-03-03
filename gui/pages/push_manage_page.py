@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt
 from gui.widgets.switch import Switch
 from gui.widgets.dialog import MessageDialog
 from ..utils import LoggingMixin, ConfigMixin, show_message
-from push.help_texts import WXPUSHER_HELP, SERVERCHAN_HELP, QMSG_HELP, EMAIL_HELP
+from utils.help_texts import WXPUSHER_HELP, SERVERCHAN_HELP, QMSG_HELP, EMAIL_HELP
 
 class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
     def __init__(self, master, callback_log, callback_status):
