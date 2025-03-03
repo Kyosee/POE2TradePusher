@@ -1,13 +1,46 @@
-from tkinter import *
-from tkinter import ttk
-
-from PIL import Image, ImageTk
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                                    QPushButton, QFrame, QScrollArea)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 import os
 import sys
 
-class StatsPage(ttk.Frame):
+class CurrencyStatsItem(QFrame):
+    """通货统计项组件"""
+    def __init__(self, parent=None, currency="", count=0, img_path=""):
+        super().__init__(parent)
+        self.setFixedHeight(34)
+        self.setProperty('class', 'currency-frame')
+        
+        # 创建布局
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 1, 6, 1)
+        layout.setSpacing(2)
+        
+        # 创建图片标签
+        self.img_label = QLabel()
+        self.img_label.setFixedSize(30, 30)
+        if os.path.exists(img_path):
+            pixmap = QPixmap(img_path)
+            scaled_pixmap = pixmap.scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.img_label.setPixmap(scaled_pixmap)
+        
+        # 创建文本标签
+        self.text_label = QLabel(currency)
+        self.text_label.setStyleSheet("font-family: 微软雅黑; font-size: 10pt;")
+        
+        # 创建计数标签
+        self.count_label = QLabel(f"{count:.1f}")
+        self.count_label.setStyleSheet("font-family: 微软雅黑; font-size: 10pt; font-weight: bold;")
+        
+        # 布局
+        layout.addWidget(self.img_label)
+        layout.addWidget(self.text_label, 1)  # 1表示会自动扩展
+        layout.addWidget(self.count_label)
+
+class StatsPage(QWidget):
     def __init__(self, master, callback_log, callback_status, callback_save=None):
-        super().__init__(master, style='Content.TFrame')
+        super().__init__(master)
         self.log_message = callback_log
         self.status_bar = callback_status
         self.save_config = callback_save
@@ -16,14 +49,28 @@ class StatsPage(ttk.Frame):
         self.trade_message_count = 0  # 交易消息计数
         self.configured_currencies = []  # 已配置的通货单位
         
+        # 创建主布局
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(12, 6, 12, 6)
+        self.main_layout.setSpacing(6)
+        
         # 创建统计区域
         self._create_stats_frame()
         
-        # 统计重置按钮（界面最右上角）
-        self.clear_btn = ttk.Button(self, text="统计重置", 
-                                  command=self.clear_stats,
-                                  style='Control.Stop.TButton')
-        self.clear_btn.place(relx=1.0, rely=0, anchor=NE, x=-12, y=12)
+        # 统计重置按钮
+        self.clear_btn = QPushButton("统计重置")
+        self.clear_btn.setProperty('class', 'danger-button')
+        self.clear_btn.clicked.connect(self.clear_stats)
+        self.clear_btn.setFixedWidth(100)
+        
+        # 创建按钮容器并右对齐
+        btn_container = QWidget()
+        btn_layout = QHBoxLayout(btn_container)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.clear_btn)
+        
+        self.main_layout.addWidget(btn_container)
         
         # 初始化显示
         self.refresh_stats_display()
@@ -31,59 +78,79 @@ class StatsPage(ttk.Frame):
     def _create_stats_frame(self):
         """创建统计区域"""
         # 交易消息数统计
-        message_frame = ttk.LabelFrame(self, text="交易消息数")
-        message_frame.pack(fill=X, padx=6, pady=3)
+        message_frame = QFrame()
+        message_frame.setProperty('class', 'card-frame')
+        message_layout = QVBoxLayout(message_frame)
+        message_layout.setContentsMargins(10, 10, 10, 10)
         
-        self.message_count_label = ttk.Label(message_frame, 
-                                           text="0", 
-                                           font=('微软雅黑', 12, 'bold'))
-        self.message_count_label.pack(padx=6, pady=3)
+        title_label = QLabel("交易消息数")
+        title_label.setProperty('class', 'card-title')
+        
+        self.message_count_label = QLabel("0")
+        self.message_count_label.setStyleSheet("font-family: 微软雅黑; font-size: 12pt; font-weight: bold;")
+        self.message_count_label.setAlignment(Qt.AlignCenter)
+        
+        message_layout.addWidget(title_label)
+        message_layout.addWidget(self.message_count_label)
+        
+        self.main_layout.addWidget(message_frame)
         
         # 交易消息通货统计
-        currency_frame = ttk.LabelFrame(self, text="交易消息通货统计")
-        currency_frame.pack(fill=BOTH, expand=True, padx=6, pady=3)
+        currency_frame = QFrame()
+        currency_frame.setProperty('class', 'card-frame')
+        currency_layout = QVBoxLayout(currency_frame)
+        currency_layout.setContentsMargins(10, 10, 10, 10)
         
-        # 容器框架
-        container = ttk.Frame(currency_frame)
-        container.pack(fill=BOTH, expand=True, padx=6, pady=3)
+        title_label = QLabel("交易消息通货统计")
+        title_label.setProperty('class', 'card-title')
+        currency_layout.addWidget(title_label)
         
-        # 创建Canvas和滚动条
-        self.canvas = Canvas(container, bg="white",
-                           relief='flat', borderwidth=0,
-                           highlightthickness=0)
-        scrollbar = ttk.Scrollbar(container, orient="vertical",
-                                command=self.canvas.yview)
+        # 创建滚动区域
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: white;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #F0F0F0;
+                width: 8px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #CDCDCD;
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                border: none;
+                background: none;
+            }
+        """)
         
-        self.currency_frame_inner = ttk.Frame(self.canvas)
+        # 创建容器widget
+        self.currency_container = QWidget()
+        self.currency_container.setStyleSheet("background: white;")
+        self.currency_layout = QVBoxLayout(self.currency_container)
+        self.currency_layout.setContentsMargins(0, 0, 0, 0)
+        self.currency_layout.setSpacing(1)
+        self.currency_layout.addStretch()
         
-        # 配置Canvas
-        self.canvas.configure(yscrollcommand=scrollbar.set)
-        self.canvas.create_window((0, 0), window=self.currency_frame_inner,
-                                anchor="nw", tags=("inner_frame",))
+        scroll_area.setWidget(self.currency_container)
+        currency_layout.addWidget(scroll_area)
         
-        # 布局
-        self.canvas.pack(side=LEFT, fill=BOTH, expand=True)
-        scrollbar.pack(side=RIGHT, fill=Y)
+        self.main_layout.addWidget(currency_frame)
         
-        # 绑定事件
-        self.currency_frame_inner.bind('<Configure>', self._on_frame_configure)
-        self.canvas.bind('<Configure>', self._on_canvas_configure)
-        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
-        self.canvas.bind("<Enter>", lambda e: self.canvas.bind_all("<MouseWheel>", self._on_mousewheel))
-        self.canvas.bind("<Leave>", lambda e: self.canvas.unbind_all("<MouseWheel>"))
-        
-    def _on_frame_configure(self, event=None):
-        """处理内部frame大小变化"""
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        
-    def _on_canvas_configure(self, event):
-        """处理Canvas大小变化"""
-        self.canvas.itemconfig("inner_frame", width=event.width)
-        
-    def _on_mousewheel(self, event):
-        """处理鼠标滚轮事件"""
-        if self.canvas.winfo_exists():
-            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    def _get_resource_path(self, filename):
+        """获取资源文件路径"""
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.abspath(".")
+        return os.path.join(base_path, "assets", "orb", filename)
             
     def update_currency_stats(self, currency, amount):
         """更新通货统计"""
@@ -96,13 +163,13 @@ class StatsPage(ttk.Frame):
     def increment_message_count(self):
         """增加交易消息计数"""
         self.trade_message_count += 1
-        self.message_count_label.config(text=str(self.trade_message_count))
+        self.message_count_label.setText(str(self.trade_message_count))
         
     def clear_stats(self):
         """清除所有统计数据"""
         self.currency_stats.clear()
         self.trade_message_count = 0
-        self.message_count_label.config(text="0")
+        self.message_count_label.setText("0")
         
         # 刷新显示（会显示所有已配置的通货单位，计数为0）
         self.refresh_stats_display()
@@ -114,24 +181,18 @@ class StatsPage(ttk.Frame):
         # 保存配置
         if self.save_config:
             self.save_config()
-            
-    def _get_resource_path(self, filename):
-        """获取资源文件路径"""
-        if getattr(sys, 'frozen', False):
-            base_path = sys._MEIPASS
-        else:
-            base_path = os.path.abspath(".")
-        return os.path.join(base_path, "assets", "orb", filename)
 
     def refresh_stats_display(self):
         """刷新统计显示"""
-        # 清除现有显示
-        for widget in self.currency_frame_inner.winfo_children():
-            widget.destroy()
+        # 清除现有显示（除了stretch）
+        while self.currency_layout.count() > 1:
+            item = self.currency_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
             
         # 获取最新的配置通货单位和统计数据
-        if hasattr(self.master, 'get_currency_config'):
-            self.configured_currencies = self.master.get_currency_config()
+        if hasattr(self.parent(), 'get_currency_config'):
+            self.configured_currencies = self.parent().get_currency_config()
         
         # 获取所有需要显示的通货
         currencies = set(self.currency_stats.keys())
@@ -139,56 +200,27 @@ class StatsPage(ttk.Frame):
         
         # 重新创建显示项
         for currency in sorted(currencies):
-            frame = ttk.Frame(self.currency_frame_inner, style='Currency.TFrame', height=34)
-            frame.pack(fill=X, padx=6, pady=(0, 1))
-            frame.pack_propagate(False)
-            
-            # 通货图标容器
-            img_frame = ttk.Frame(frame, width=30, height=30)
-            img_frame.pack(side=LEFT, padx=1)
-            img_frame.pack_propagate(False)
-            
-            # 通货图标
-            img_label = Label(img_frame, width=30, height=30)
             img_path = self._get_resource_path(f"{currency.lower()}.png")
-            
-            try:
-                if os.path.exists(img_path):
-                    img = Image.open(img_path)
-                    img = img.resize((30, 30), Image.Resampling.LANCZOS)
-                    photo = ImageTk.PhotoImage(img)
-                    img_label.configure(image=photo)
-                    img_label.image = photo
-            except Exception as e:
-                self.log_message(f"加载图片失败: {e}", "ERROR")
-                
-            img_label.pack(side=LEFT, padx=2)
-            
-            # 通货名称
-            ttk.Label(frame, text=currency,
-                     font=('微软雅黑', 10)).pack(side=LEFT, fill=X, expand=True, padx=2)
-            
-            # 计数（右对齐）
             count = self.currency_stats.get(currency, 0)
-            ttk.Label(frame, text=f"{count:.1f}",
-                     font=('微软雅黑', 10, 'bold')).pack(side=RIGHT, padx=6)
+            item = CurrencyStatsItem(currency=currency, count=count, img_path=img_path)
+            self.currency_layout.insertWidget(self.currency_layout.count() - 1, item)
             
-    def get_data(self):
+    def get_config_data(self):
         """获取页面数据"""
         return {
             'currency_stats': self.currency_stats,
             'trade_message_count': self.trade_message_count
         }
         
-    def set_data(self, data):
+    def set_config_data(self, data):
         """设置页面数据"""
         self.currency_stats = data.get('currency_stats', {})
         self.trade_message_count = data.get('trade_message_count', 0)
         
         # 重新获取已配置的通货单位
-        if hasattr(self.master, 'get_currency_config'):
-            self.configured_currencies = self.master.get_currency_config()
+        if hasattr(self.parent(), 'get_currency_config'):
+            self.configured_currencies = self.parent().get_currency_config()
             
         # 更新显示
-        self.message_count_label.config(text=str(self.trade_message_count))
+        self.message_count_label.setText(str(self.trade_message_count))
         self.refresh_stats_display()

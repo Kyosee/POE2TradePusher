@@ -1,9 +1,7 @@
 import os
-import threading
-import PIL.Image
-import PIL.ImageDraw
-import PIL.ImageFont
-import pystray
+from PySide6.QtWidgets import QSystemTrayIcon, QMenu
+from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap, QColor
+from PySide6.QtCore import Qt, QSize
 
 class TrayIcon:
     """系统托盘管理类"""
@@ -28,28 +26,43 @@ class TrayIcon:
     def setup(self):
         """初始化系统托盘"""
         try:
-            # 加载或创建图标
-            image = self._create_icon()
+            # 创建系统托盘图标
+            self.tray_icon = QSystemTrayIcon()
+            self.tray_icon.setToolTip(self.title)
             
-            # 创建托盘菜单
-            menu = pystray.Menu(lambda: (
-                pystray.MenuItem("显示/隐藏", self._on_toggle, default=True),
-                pystray.MenuItem("启动监控", self._on_start),
-                pystray.MenuItem("停止监控", self._on_stop),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("退出", self._on_quit)
-            ))
+            # 加载图标
+            icon = self._create_icon()
+            self.tray_icon.setIcon(icon)
             
-            # 创建托盘图标
-            self.tray_icon = pystray.Icon(
-                "POE2TradePusher",
-                image,
-                self.title,
-                menu
-            )
+            # 创建右键菜单
+            menu = QMenu()
             
-            # 在单独的线程中运行托盘图标
-            threading.Thread(target=self.tray_icon.run, daemon=True).start()
+            # 显示/隐藏选项
+            toggle_action = menu.addAction("显示/隐藏")
+            toggle_action.triggered.connect(self._on_toggle)
+            menu.addSeparator()
+            
+            # 启动/停止监控选项
+            start_action = menu.addAction("启动监控")
+            start_action.triggered.connect(self._on_start)
+            
+            stop_action = menu.addAction("停止监控")
+            stop_action.triggered.connect(self._on_stop)
+            menu.addSeparator()
+            
+            # 退出选项
+            quit_action = menu.addAction("退出")
+            quit_action.triggered.connect(self._on_quit)
+            
+            # 设置右键菜单
+            self.tray_icon.setContextMenu(menu)
+            
+            # 双击事件处理
+            self.tray_icon.activated.connect(self._on_activated)
+            
+            # 显示托盘图标
+            self.tray_icon.show()
+            
             return True, "托盘初始化成功"
             
         except Exception as e:
@@ -58,24 +71,31 @@ class TrayIcon:
     def _create_icon(self):
         """创建托盘图标"""
         if os.path.exists(self.icon_path):
-            image = PIL.Image.open(self.icon_path)
-            image = image.resize((32, 32), PIL.Image.Resampling.LANCZOS)
-            return image
+            return QIcon(self.icon_path)
         else:
             # 创建默认图标
-            image = PIL.Image.new('RGBA', (32, 32), (0, 0, 0, 0))
-            draw = PIL.ImageDraw.Draw(image)
-            draw.ellipse((2, 2, 30, 30), fill='#07C160')
+            image = QImage(32, 32, QImage.Format_ARGB32)
+            image.fill(Qt.transparent)
             
-            # 加载字体
-            try:
-                font = PIL.ImageFont.truetype("arial", 12)
-            except:
-                font = PIL.ImageFont.load_default()
-                
-            # 添加文字
-            draw.text((8, 8), "P2", fill='white', font=font)
-            return image
+            painter = QPainter(image)
+            painter.setRenderHint(QPainter.Antialiasing)
+            
+            # 绘制圆形背景
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor('#07C160'))
+            painter.drawEllipse(2, 2, 28, 28)
+            
+            # 绘制文字
+            painter.setPen(Qt.white)
+            font = painter.font()
+            font.setPointSize(10)
+            painter.setFont(font)
+            painter.drawText(image.rect(), Qt.AlignCenter, 'P2')
+            
+            painter.end()
+
+            pixmap = QPixmap.fromImage(image)
+            return QIcon(pixmap)
             
     def set_callback(self, event, callback):
         """
@@ -85,32 +105,40 @@ class TrayIcon:
         """
         self.callbacks[event] = callback
         
-    def _on_toggle(self, icon, item):
+    def _on_toggle(self):
         """切换窗口显示状态"""
         if self.callbacks['on_toggle']:
             self.callbacks['on_toggle']()
             
-    def _on_start(self, icon, item):
+    def _on_start(self):
         """启动监控"""
         if self.callbacks['on_start']:
             self.callbacks['on_start']()
             
-    def _on_stop(self, icon, item):
+    def _on_stop(self):
         """停止监控"""
         if self.callbacks['on_stop']:
             self.callbacks['on_stop']()
             
-    def _on_quit(self, icon, item):
+    def _on_quit(self):
         """退出应用程序"""
         if self.callbacks['on_quit']:
             self.callbacks['on_quit']()
             
+    def _on_activated(self, reason):
+        """处理托盘图标激活事件"""
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self._on_toggle()
+            
     def stop(self):
         """停止托盘图标"""
         if self.tray_icon:
-            self.tray_icon.stop()
+            self.tray_icon.hide()
             
     def set_visible(self, visible):
         """设置托盘图标可见性"""
         if self.tray_icon:
-            self.tray_icon.visible = visible
+            if visible:
+                self.tray_icon.show()
+            else:
+                self.tray_icon.hide()

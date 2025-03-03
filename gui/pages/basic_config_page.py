@@ -1,18 +1,26 @@
-from tkinter import *
-from tkinter import ttk, filedialog
-import os
-import re
+from PySide6.QtWidgets import (QWidget, QFrame, QVBoxLayout, QHBoxLayout, 
+                                    QLabel, QLineEdit, QPushButton, QSpinBox,
+                                    QListWidget, QMenu, QTextEdit, QFileDialog,
+                                    QComboBox)
+from PySide6.QtCore import Qt, Signal
 from ..utils import LoggingMixin, ConfigMixin, show_message, ask_yes_no
 from ..widgets.dialog import MessageDialog, InputDialog
+from ..widgets.switch import Switch
+import os
 
-class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
+class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
     """基本配置页面"""
-    def __init__(self, master, log_callback, status_callback, callback_save=None):
-        ttk.Frame.__init__(self, master, style='Content.TFrame')
+    def __init__(self, parent, log_callback, status_callback, callback_save=None):
+        super().__init__(parent)
         LoggingMixin.__init__(self, log_callback, status_callback)
         self.init_config()  # 初始化配置对象
         self.save_config = callback_save
         self.main_window = None  # 用于存储MainWindow引用
+        
+        # 创建主布局
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(12, 6, 12, 6)
+        self.main_layout.setSpacing(6)
         
         # 创建各组件
         self._create_game_frame()
@@ -23,174 +31,193 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
         
     def _create_game_frame(self):
         """创建游戏窗口配置区域"""
-        self.game_frame = ttk.LabelFrame(self, text="游戏窗口配置")
-        ttk.Label(self.game_frame, text="窗口名称:", style='Frame.TLabel').grid(row=0, column=0, padx=6)
-        self.game_entry = ttk.Entry(self.game_frame, width=70)
-        self.game_entry.insert(0, "Path of Exile")
-        self.switch_btn = ttk.Button(self.game_frame, text="切换窗口", command=self._switch_to_game)
+        game_frame = QFrame()
+        game_frame.setProperty('class', 'card-frame')
+        game_layout = QHBoxLayout(game_frame)
+        game_layout.setContentsMargins(10, 10, 10, 10)
         
-        # 布局游戏窗口配置区域
-        self.game_frame.pack(fill=X, padx=12, pady=6)
-        self.game_entry.grid(row=0, column=1, padx=6, sticky="ew")
-        self.switch_btn.grid(row=0, column=2, padx=6)
-        self.game_frame.columnconfigure(1, weight=1)
+        title_label = QLabel("游戏窗口配置")
+        title_label.setProperty('class', 'card-title')
         
-        # 绑定值变化事件
-        self.game_entry.bind('<KeyRelease>', lambda e: self._on_settings_change())
+        name_label = QLabel("窗口名称:")
+        self.game_entry = QLineEdit()
+        self.game_entry.setText("Path of Exile")
+        self.game_entry.textChanged.connect(self._on_settings_change)
+        self.switch_btn = QPushButton("切换窗口")
+        self.switch_btn.setProperty('class', 'normal-button')
+        self.switch_btn.clicked.connect(self._switch_to_game)
+        
+        game_layout.addWidget(name_label)
+        game_layout.addWidget(self.game_entry, 1)
+        game_layout.addWidget(self.switch_btn)
+        
+        self.main_layout.addWidget(title_label)
+        self.main_layout.addWidget(game_frame)
         
     def _create_file_frame(self):
         """创建文件配置区域"""
-        self.file_frame = ttk.LabelFrame(self, text="日志文件配置")
-        ttk.Label(self.file_frame, text="日志路径:", style='Frame.TLabel').grid(row=0, column=0, padx=6)
-        self.file_entry = ttk.Entry(self.file_frame, width=70)
-        self.browse_btn = ttk.Button(self.file_frame, text="📂 浏览", command=self.select_file)
+        file_frame = QFrame()
+        file_frame.setProperty('class', 'card-frame')
+        file_layout = QHBoxLayout(file_frame)
+        file_layout.setContentsMargins(10, 10, 10, 10)
         
-        # 布局文件配置区域
-        self.file_frame.pack(fill=X, padx=12, pady=6)
-        self.file_entry.grid(row=0, column=1, padx=6, sticky="ew")
-        self.browse_btn.grid(row=0, column=2, padx=6)
-        self.file_frame.columnconfigure(1, weight=1)
+        title_label = QLabel("日志文件配置")
+        title_label.setProperty('class', 'card-title')
         
-        # 绑定值变化事件
-        self.file_entry.bind('<KeyRelease>', lambda e: self._on_settings_change())
+        path_label = QLabel("日志路径:")
+        self.file_entry = QLineEdit()
+        self.file_entry.textChanged.connect(self._on_settings_change)
+        self.browse_btn = QPushButton("📂 浏览")
+        self.browse_btn.setProperty('class', 'normal-button')
+        self.browse_btn.clicked.connect(self.select_file)
+        
+        file_layout.addWidget(path_label)
+        file_layout.addWidget(self.file_entry, 1)
+        file_layout.addWidget(self.browse_btn)
+        
+        self.main_layout.addWidget(title_label)
+        self.main_layout.addWidget(file_frame)
         
     def _create_settings_frame(self):
         """创建监控设置区域"""
-        self.settings_frame = ttk.LabelFrame(self, text="监控设置")
-        ttk.Label(self.settings_frame, text="检测间隔(ms):", style='Frame.TLabel').grid(row=0, column=0, padx=6)
-        self.interval_spin = ttk.Spinbox(self.settings_frame, from_=500, to=5000, 
-                                       increment=100, width=8, font=('Consolas', 10))
+        settings_frame = QFrame()
+        settings_frame.setProperty('class', 'card-frame')
+        settings_layout = QVBoxLayout(settings_frame)
+        settings_layout.setContentsMargins(10, 10, 10, 10)
         
-        ttk.Label(self.settings_frame, text="推送间隔(ms):", style='Frame.TLabel').grid(row=0, column=2, padx=6)
-        self.push_interval_entry = ttk.Entry(self.settings_frame, width=8, font=('Consolas', 10))
+        title_label = QLabel("监控设置")
+        title_label.setProperty('class', 'card-title')
         
-        # 添加置顶开关
-        ttk.Label(self.settings_frame, text="置顶本程序窗口:", style='Frame.TLabel').grid(row=1, column=0, padx=6, pady=(6,0))
-        from gui.widgets.switch import Switch
-        self.top_switch = Switch(self.settings_frame, width=50, height=30, default=False)
-        self.top_switch.grid(row=1, column=1, padx=0, pady=(6,0))
+        # 间隔设置行
+        interval_layout = QHBoxLayout()
+        interval_layout.addWidget(QLabel("检测间隔(ms):"))
         
-        # 绑定置顶开关事件
-        self.top_switch.checked.trace_add('write', self._on_top_switch_change)
+        self.interval_spin = QSpinBox()
+        self.interval_spin.setRange(500, 5000)
+        self.interval_spin.setSingleStep(100)
+        self.interval_spin.setValue(1000)
+        self.interval_spin.valueChanged.connect(self._on_settings_change)
+        interval_layout.addWidget(self.interval_spin)
         
-        # 布局监控设置区域
-        self.settings_frame.pack(fill=X, padx=12, pady=6)
-        self.interval_spin.grid(row=0, column=1, padx=6)
-        self.push_interval_entry.grid(row=0, column=3, padx=6)
+        interval_layout.addWidget(QLabel("推送间隔(ms):"))
+        self.push_interval_entry = QSpinBox()
+        self.push_interval_entry.setRange(0, 99999)
+        self.push_interval_entry.setValue(0)
+        self.push_interval_entry.valueChanged.connect(self._on_settings_change)
+        interval_layout.addWidget(self.push_interval_entry)
+        interval_layout.addStretch()
         
-        # 设置默认值
-        self.interval_spin.set(1000)
-        self.push_interval_entry.insert(0, "0")
+        # 置顶设置行
+        top_layout = QHBoxLayout()
+        top_layout.addWidget(QLabel("置顶本程序窗口:"))
         
-        # 绑定值变化事件
-        self.interval_spin.bind('<KeyRelease>', lambda e: self._on_settings_change())
-        self.interval_spin.bind('<ButtonRelease-1>', lambda e: self._on_settings_change())
-        self.push_interval_entry.bind('<KeyRelease>', lambda e: self._on_settings_change())
+        self.top_switch = Switch()
+        self.top_switch.stateChanged.connect(self._on_top_switch_change)
+        top_layout.addWidget(self.top_switch)
+        top_layout.addStretch()
+        
+        settings_layout.addLayout(interval_layout)
+        settings_layout.addLayout(top_layout)
+        
+        self.main_layout.addWidget(title_label)
+        self.main_layout.addWidget(settings_frame)
         
     def _create_keywords_frame(self):
         """创建关键词管理区域"""
-        self.keywords_frame = ttk.LabelFrame(self, text="关键词管理")
+        keywords_frame = QFrame()
+        keywords_frame.setProperty('class', 'card-frame')
+        keywords_layout = QVBoxLayout(keywords_frame)
+        keywords_layout.setContentsMargins(10, 10, 10, 10)
         
-        # 输入框和按钮
-        input_frame = ttk.Frame(self.keywords_frame, style='Frame.TLabel')
+        title_label = QLabel("关键词管理")
+        title_label.setProperty('class', 'card-title')
         
-        # 模式选择下拉列表
-        self.mode_var = StringVar(value="消息模式")
-        self.mode_combo = ttk.Combobox(input_frame, textvariable=self.mode_var, 
-                                     values=["消息模式", "交易模式"], 
-                                     state="readonly", width=10,
-                                     font=('微软雅黑', 10))
-        self.mode_combo.configure(height=25)  # 调整下拉框高度
-        style = ttk.Style()
-        style.configure('Combobox', padding=6)  # 调整内边距
-        self.mode_combo.bind('<<ComboboxSelected>>', lambda e: self.keyword_entry.focus())
+        # 输入区域
+        input_layout = QHBoxLayout()
         
-        self.keyword_entry = ttk.Entry(input_frame, font=('微软雅黑', 10))
-        self.add_btn = ttk.Button(input_frame, text="➕ 添加", command=self.add_keyword)
-        self.clear_kw_btn = ttk.Button(input_frame, text="🔄 清空", command=self.clear_keywords)
-        self.help_btn = ttk.Button(input_frame, text="❓ 帮助", 
-                                 command=self.show_help,
-                                 style='Control.Save.TButton')
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["消息模式", "交易模式"])
+        input_layout.addWidget(self.mode_combo)
         
-        # 布局输入区域
-        input_frame.pack(fill=X, padx=6, pady=3)
-        self.mode_combo.pack(side=LEFT, padx=(0, 3))
-        self.keyword_entry.pack(side=LEFT, fill=X, expand=True, padx=(0, 3))
-        self.add_btn.pack(side=LEFT, padx=3)
-        self.clear_kw_btn.pack(side=LEFT, padx=3)
-        self.help_btn.pack(side=LEFT, padx=3)
+        self.keyword_entry = QLineEdit()
+        self.keyword_entry.returnPressed.connect(self.add_keyword)
+        input_layout.addWidget(self.keyword_entry)
+        
+        add_btn = QPushButton("➕ 添加")
+        add_btn.setProperty('class', 'normal-button')
+        add_btn.clicked.connect(self.add_keyword)
+        input_layout.addWidget(add_btn)
+        
+        clear_btn = QPushButton("🔄 清空")
+        clear_btn.setProperty('class', 'danger-button')
+        clear_btn.clicked.connect(self.clear_keywords)
+        input_layout.addWidget(clear_btn)
+        
+        help_btn = QPushButton("❓ 帮助")
+        help_btn.setProperty('class', 'control-save-button')
+        help_btn.clicked.connect(self.show_help)
+        input_layout.addWidget(help_btn)
+        
+        keywords_layout.addLayout(input_layout)
         
         # 关键词列表
-        list_frame = ttk.Frame(self.keywords_frame)
-        list_frame.pack(fill=BOTH, expand=True, padx=6, pady=3)
+        self.keyword_list = QListWidget()
+        self.keyword_list.itemSelectionChanged.connect(self.on_keyword_select)
+        self.keyword_list.itemDoubleClicked.connect(self.edit_keyword)
+        self.keyword_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.keyword_list.customContextMenuRequested.connect(self.show_keyword_menu)
+        keywords_layout.addWidget(self.keyword_list)
         
-        self.keyword_list = Listbox(list_frame, height=8, font=('微软雅黑', 10),
-                                  selectmode=SINGLE, bg="white",
-                                  relief='solid', borderwidth=1,
-                                  activestyle='none')
-        self.keyword_list.pack(side=LEFT, fill=BOTH, expand=True)
-        
-        # 添加滚动条
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", 
-                                command=self.keyword_list.yview)
-        scrollbar.pack(side=RIGHT, fill=Y)
-        self.keyword_list.configure(yscrollcommand=scrollbar.set)
-        
-        # 布局关键词管理区域
-        self.keywords_frame.pack(fill=BOTH, expand=True, padx=12, pady=6)
-
         # 测试区域
-        test_frame = ttk.LabelFrame(self, text="关键词测试")
-        test_frame.pack(fill=X, padx=12, pady=6)
+        test_frame = QFrame()
+        test_frame.setProperty('class', 'card-frame')
+        test_layout = QVBoxLayout(test_frame)
+        test_layout.setContentsMargins(10, 10, 10, 10)
         
-        test_input_frame = ttk.Frame(test_frame, style='Frame.TLabel')
-        test_input_frame.pack(fill=X, padx=6, pady=(6, 3))
+        test_input_layout = QHBoxLayout()
+        self.test_text = QTextEdit()
+        self.test_text.setFixedHeight(50)
+        test_input_layout.addWidget(self.test_text)
         
-        self.test_text = Text(test_input_frame, height=1,
-                            font=('微软雅黑', 9),
-                            relief='solid', borderwidth=1,
-                            bg='white', padx=8, pady=8)
-        self.test_text.pack(side=LEFT, fill=X, expand=True, padx=(0, 3))
+        test_btn = QPushButton("测试")
+        test_btn.setProperty('class', 'normal-button')
+        test_btn.clicked.connect(self.test_keyword)
+        test_input_layout.addWidget(test_btn)
         
-        test_btn = ttk.Button(test_input_frame, text="测试", 
-                            command=self.test_keyword)
-        test_btn.pack(side=LEFT, padx=3)
+        test_layout.addLayout(test_input_layout)
         
-        self.test_result = Text(test_frame, height=4,
-                              font=('微软雅黑', 9),
-                              relief='solid', borderwidth=1,
-                              bg='white', padx=8, pady=8,
-                              state='disabled')
-        self.test_result.pack(fill=X, padx=6, pady=(3, 6))
+        self.test_result = QTextEdit()
+        self.test_result.setReadOnly(True)
+        self.test_result.setFixedHeight(100)
+        test_layout.addWidget(self.test_result)
         
-        # 绑定事件
-        self.keyword_list.bind('<Double-Button-1>', lambda e: self.edit_keyword())
-        self.keyword_list.bind('<Button-3>', self.show_keyword_menu)
-        self.keyword_list.bind('<<ListboxSelect>>', lambda e: self.on_keyword_select())
-        self.keyword_entry.bind('<Return>', lambda e: self.add_keyword())
+        keywords_layout.addWidget(test_frame)
+        
+        self.main_layout.addWidget(title_label)
+        self.main_layout.addWidget(keywords_frame)
         
     def _setup_keyword_menu(self):
         """设置关键词右键菜单"""
-        self.keyword_menu = Menu(self, tearoff=0, font=('微软雅黑', 9))
-        self.keyword_menu.configure(bg='white', activebackground='#E7F7EE',
-                                  activeforeground='#07C160', relief='flat')
+        self.keyword_menu = QMenu(self)
         
-        # 添加菜单项
-        self.keyword_menu.add_command(label="📄 编辑", command=self.edit_keyword,
-                                    font=('微软雅黑', 9))
-        self.keyword_menu.add_command(label="❌ 删除", command=self.remove_selected_keyword,
-                                    font=('微软雅黑', 9))
-        self.keyword_menu.add_separator()
-        self.keyword_menu.add_command(label="📋 复制", command=self.copy_keyword,
-                                    font=('微软雅黑', 9))
+        edit_action = self.keyword_menu.addAction("📄 编辑")
+        edit_action.triggered.connect(self.edit_keyword)
+        
+        delete_action = self.keyword_menu.addAction("❌ 删除")
+        delete_action.triggered.connect(self.remove_selected_keyword)
+        
+        self.keyword_menu.addSeparator()
+        
+        copy_action = self.keyword_menu.addAction("📋 复制")
+        copy_action.triggered.connect(self.copy_keyword)
                                     
     def show_help(self):
         """显示帮助信息"""
         help_content = """消息模式：
-填写 來自 则日志中匹配到包含 來自 的消息就会推送，支持多关键词匹配用"|"进行分隔，如：來自|我想購買 则只会匹配日志中同时包含这两个关键词的行进行推送
+填写 来自 则日志中匹配到包含 来自 的消息就会推送，支持多关键词匹配用"|"进行分隔，如：来自|我想購買 则只会匹配日志中同时包含这两个关键词的行进行推送
 
 交易模式：
-示例 *來自 {@user}: 你好，我想購買 {@item} 標價 {@price} {@currency} 在 {@mode} (倉庫頁 "{@tab}"; 位置: {@p1} {@p1_num}, {@p2} {@p2_num})
+示例 *来自 {@user}: 你好，我想購買 {@item} 標價 {@price} {@currency} 在 {@mode} (倉庫頁 "{@tab}"; 位置: {@p1} {@p1_num}, {@p2} {@p2_num})
 *代表会变化的任意内容（因为时间和客户端ID会变化）
 @user 玩家昵称
 @item 装备名称
@@ -203,37 +230,40 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
 @p2 位置2方向
 @p2_num 位置2坐标"""
         
-        MessageDialog(self, "关键词帮助", help_content)
-        
-    def add_keyword(self, *args):
+        dialog = MessageDialog(self, "关键词帮助", help_content)
+        dialog.show()
+
+    def add_keyword(self):
         """添加关键词"""
-        keyword = self.keyword_entry.get().strip()
+        keyword = self.keyword_entry.text().strip()
         if not keyword:
             self.log_message("无法添加空关键词", "WARN")
             return
             
-        mode = self.mode_var.get()
+        mode = self.mode_combo.currentText()
         formatted_keyword = f"[{mode}] {keyword}"
             
-        if formatted_keyword in self.keyword_list.get(0, END):
-            self.log_message(f"重复关键词: {keyword}", "WARN")
-            return
+        # 检查是否已存在
+        for i in range(self.keyword_list.count()):
+            if self.keyword_list.item(i).text() == formatted_keyword:
+                self.log_message(f"重复关键词: {keyword}", "WARN")
+                return
             
-        self.keyword_list.insert(END, formatted_keyword)
-        self.keyword_entry.delete(0, END)
+        self.keyword_list.addItem(formatted_keyword)
+        self.keyword_entry.clear()
         self.log_message(f"已添加关键词: {formatted_keyword}")
         if self.save_config:
             self.save_config()
-            
+
     def test_keyword(self):
         """测试关键词"""
-        selection = self.keyword_list.curselection()
-        if not selection:
+        current_item = self.keyword_list.currentItem()
+        if not current_item:
             show_message("提示", "请先选择要测试的关键词", "warning")
             return
             
-        keyword = self.keyword_list.get(selection[0])
-        test_text = self.test_text.get('1.0', 'end-1c')
+        keyword = current_item.text()
+        test_text = self.test_text.toPlainText()
         
         if not test_text:
             show_message("提示", "请输入要测试的文本", "warning")
@@ -247,17 +277,15 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
             mode = "交易模式"
             pattern = keyword.replace("[交易模式]", "").strip()
             
-        # 启用文本框以更新内容
-        self.test_result.config(state='normal')
-        self.test_result.delete('1.0', END)
+        self.test_result.clear()
         
         if mode == "消息模式":
             # 消息模式测试
             keywords = pattern.split('|')
             if all(kw.strip() in test_text for kw in keywords):
-                self.test_result.insert('1.0', f"匹配成功：{pattern}")
+                self.test_result.setText(f"匹配成功：{pattern}")
             else:
-                self.test_result.insert('1.0', "[消息模式]不匹配")
+                self.test_result.setText("[消息模式]不匹配")
         else:
             # 交易模式测试
             # 将模板中的*替换为通配符
@@ -272,26 +300,24 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
             for ph in placeholders:
                 template = template.replace('{' + ph + '}', '(.+?)')
            
+            import re
             match = re.match(template, test_text)
             if match:
                 result = "匹配成功，解析结果：\n"
                 for i, ph in enumerate(placeholders, 1):
                     if i <= len(match.groups()):
                         result += f"{ph[1:]}: {match.group(i)}\n"
-                self.test_result.insert('1.0', result)
+                self.test_result.setText(result)
             else:
-                self.test_result.insert('1.0', "[交易模式]不匹配")
-                
-        # 禁用文本框
-        self.test_result.config(state='disabled')
+                self.test_result.setText("[交易模式]不匹配")
         
     def edit_keyword(self):
         """编辑选中的关键词"""
-        selection = self.keyword_list.curselection()
-        if not selection:
+        current_item = self.keyword_list.currentItem()
+        if not current_item:
             return
             
-        current_keyword = self.keyword_list.get(selection[0])
+        current_keyword = current_item.text()
         # 从关键词中提取模式和内容
         if "[消息模式]" in current_keyword:
             mode = "消息模式"
@@ -303,24 +329,31 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
         def save_edit(new_pattern):
             new_keyword = f"[{mode}] {new_pattern}"
             if new_pattern and new_keyword != current_keyword:
-                if new_keyword not in self.keyword_list.get(0, END):
-                    self.keyword_list.delete(selection[0])
-                    self.keyword_list.insert(selection[0], new_keyword)
+                # 检查是否已存在
+                exists = False
+                for i in range(self.keyword_list.count()):
+                    if i != self.keyword_list.currentRow() and self.keyword_list.item(i).text() == new_keyword:
+                        exists = True
+                        break
+                        
+                if not exists:
+                    current_item.setText(new_keyword)
                     self.log_message(f"关键词已更新: {current_keyword} → {new_keyword}")
                     if self.save_config:
                         self.save_config()
                 else:
                     show_message("提示", "关键词已存在", "warning")
                     
-        # 使用InputDialog替代
-        InputDialog(self, "编辑关键词", "请输入新的关键词：", pattern, save_edit)
+        # 使用InputDialog进行编辑
+        dialog = InputDialog(self, "编辑关键词", "请输入新的关键词：", pattern, save_edit)
+        dialog.show()  # 确保对话框显示
 
     def remove_selected_keyword(self):
         """删除选中的关键词"""
-        selection = self.keyword_list.curselection()
-        if selection:
-            keyword = self.keyword_list.get(selection[0])
-            self.keyword_list.delete(selection[0])
+        current_item = self.keyword_list.currentItem()
+        if current_item:
+            keyword = current_item.text()
+            self.keyword_list.takeItem(self.keyword_list.row(current_item))
             self.log_message(f"已移除关键词: {keyword}")
             if self.save_config:
                 self.save_config()
@@ -328,34 +361,31 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
     def clear_keywords(self):
         """清空关键词"""
         if ask_yes_no("确认清空", "确定要清空所有关键词吗？\n此操作无法撤销"):
-            self.keyword_list.delete(0, END)
+            self.keyword_list.clear()
             self.log_message("已清空关键词列表")
             self.update_status("✨ 已清空关键词列表")
             if self.save_config:
                 self.save_config()
             
-    def show_keyword_menu(self, event):
+    def show_keyword_menu(self, pos):
         """显示关键词右键菜单"""
-        if self.keyword_list.size() > 0:
-            selection = self.keyword_list.curselection()
-            if selection:  # 只在选中项目时显示菜单
-                self.keyword_menu.post(event.x_root, event.y_root)
-                
+        if self.keyword_list.count() > 0 and self.keyword_list.currentItem():
+            self.keyword_menu.exec_(self.keyword_list.mapToGlobal(pos))
+
     def copy_keyword(self):
         """复制选中的关键词到剪贴板"""
-        selection = self.keyword_list.curselection()
-        if selection:
-            keyword = self.keyword_list.get(selection[0])
-            self.clipboard_clear()
-            self.clipboard_append(keyword)
-            self.update_status(f"已复制: {keyword}")
+        current_item = self.keyword_list.currentItem()
+        if current_item:
+            from PySide6.QtGui import QGuiApplication
+            clipboard = QGuiApplication.clipboard()
+            clipboard.setText(current_item.text())
+            self.update_status(f"已复制: {current_item.text()}")
             
     def select_file(self):
         """选择文件"""
-        file_path = filedialog.askopenfilename()
+        file_path, _ = QFileDialog.getOpenFileName(self, "选择日志文件")
         if file_path:
-            self.file_entry.delete(0, END)
-            self.file_entry.insert(0, file_path)
+            self.file_entry.setText(file_path)
             self.log_message(f"已选择日志文件: {file_path}")
             if self.save_config:
                 self.save_config()
@@ -370,19 +400,13 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
         if not data.get('keywords', []):
             return False, "请至少添加一个关键词"
             
-        try:
-            interval = int(data.get('interval', 0))
-            if interval < 500 or interval > 5000:
-                return False, "检测间隔必须在500-5000毫秒之间"
-        except ValueError:
-            return False, "无效的检测间隔值"
+        interval = data.get('interval', 0)
+        if interval < 500 or interval > 5000:
+            return False, "检测间隔必须在500-5000毫秒之间"
             
-        try:
-            push_interval = int(data.get('push_interval', 0))
-            if push_interval < 0:
-                return False, "推送间隔不能为负数"
-        except ValueError:
-            return False, "无效的推送间隔值"
+        push_interval = data.get('push_interval', 0)
+        if push_interval < 0:
+            return False, "推送间隔不能为负数"
             
         return True, None
 
@@ -394,7 +418,7 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
     def _switch_to_game(self):
         """切换到游戏窗口"""
         from ..utils import switch_to_window
-        window_name = self.game_entry.get().strip()
+        window_name = self.game_entry.text().strip()
         if switch_to_window(window_name):
             self.log_message(f"已切换到游戏窗口: {window_name}")
         else:
@@ -403,8 +427,8 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
     def get_config_data(self):
         """获取配置数据"""
         keywords = []
-        for i in range(self.keyword_list.size()):
-            kw = self.keyword_list.get(i)
+        for i in range(self.keyword_list.count()):
+            kw = self.keyword_list.item(i).text()
             if "[消息模式]" in kw:
                 mode = "消息模式"
                 pattern = kw.replace("[消息模式]", "").strip()
@@ -422,12 +446,12 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
         
         # 创建新配置，保留现有的wxpusher和email配置
         new_config = {
-            'game_window': self.game_entry.get(),
-            'log_path': self.file_entry.get(),
-            'interval': int(self.interval_spin.get()),
-            'push_interval': int(self.push_interval_entry.get() or 0),
+            'game_window': self.game_entry.text(),
+            'log_path': self.file_entry.text(),
+            'interval': self.interval_spin.value(),
+            'push_interval': self.push_interval_entry.value(),
             'keywords': keywords,
-            'always_on_top': self.top_switch.get(),
+            'always_on_top': self.top_switch.isChecked(),
             'wxpusher': current_config.get('wxpusher', {
                 'enabled': False,
                 'app_token': '',
@@ -447,41 +471,40 @@ class BasicConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
         
     def set_config_data(self, data):
         """设置配置数据"""
-        self.game_entry.delete(0, END)
-        self.game_entry.insert(0, data.get('game_window', 'Path of Exile'))
+        self.game_entry.setText(data.get('game_window', 'Path of Exile'))
         
         # 设置置顶开关状态并触发置顶效果
         always_on_top = data.get('always_on_top', False)
-        self.top_switch.set(always_on_top)
+        self.top_switch.setChecked(always_on_top)
         # 设置置顶状态
         if self.main_window:
             self.main_window.set_always_on_top(always_on_top)
         
-        self.file_entry.delete(0, END)
-        self.file_entry.insert(0, data.get('log_path', ''))
+        self.file_entry.setText(data.get('log_path', ''))
+        self.interval_spin.setValue(data.get('interval', 1000))
+        self.push_interval_entry.setValue(data.get('push_interval', 0))
         
-        self.interval_spin.set(data.get('interval', 1000))
-        
-        self.push_interval_entry.delete(0, END)
-        self.push_interval_entry.insert(0, data.get('push_interval', 0))
-        
-        self.keyword_list.delete(0, END)
+        self.keyword_list.clear()
         for kw in data.get('keywords', []):
             # 兼容旧版数据格式
             if isinstance(kw, str):
-                self.keyword_list.insert(END, f"[消息模式] {kw}")
+                self.keyword_list.addItem(f"[消息模式] {kw}")
             else:
                 mode = kw.get('mode', '消息模式')
                 pattern = kw.get('pattern', '')
-                self.keyword_list.insert(END, f"[{mode}] {pattern}")
+                self.keyword_list.addItem(f"[{mode}] {pattern}")
+                
+    def on_keyword_select(self):
+        """处理关键词选择变化"""
+        pass
     
     def set_main_window(self, main_window):
         """设置MainWindow引用"""
         self.main_window = main_window
 
-    def _on_top_switch_change(self, *args):
+    def _on_top_switch_change(self, checked):
         """处理置顶开关状态变化"""
         if self.main_window:
-            self.main_window.set_always_on_top(self.top_switch.get())
+            self.main_window.set_always_on_top(checked)
         if self.save_config:
             self.save_config()

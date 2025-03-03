@@ -11,6 +11,7 @@ class LogMonitor:
     def __init__(self, config, log_callback=None, stats_page=None):
         self.config = config
         self.push_handlers = []  # 推送处理器列表
+        self.handlers = []  # 其他处理器列表(如自动交易处理器)
         self.log_callback = log_callback or (lambda msg, level: None)
         self.stats_page = stats_page
         
@@ -84,6 +85,12 @@ class LogMonitor:
         if handler:
             self.push_handlers.append(handler)
             self.log_callback("已添加推送处理器", "SYSTEM")
+            
+    def add_handler(self, handler):
+        """添加其他处理器（如自动交易处理器）"""
+        if handler:
+            self.handlers.append(handler)
+            self.log_callback("已添加处理器", "SYSTEM")
             
     def _send_push_message(self, title, content):
         """发送推送消息到所有处理器"""
@@ -222,6 +229,11 @@ class LogMonitor:
             # 提取内容
             content = self.file_utils.extract_content(line)
             
+            # 更新所有处理器的日志
+            for handler in self.handlers:
+                if hasattr(handler, 'handle_game_log'):
+                    handler.handle_game_log(content)
+
             # 关键词匹配（支持多关键词组合）
             for kw in self.config.get('keywords', []):
                 if isinstance(kw, str):  # 旧版格式兼容
@@ -268,6 +280,11 @@ class LogMonitor:
                         )
                         self.log_callback(log_msg, "TRADE")
                         
+                        # 触发自动交易处理器
+                        for handler in self.handlers:
+                            if hasattr(handler, 'handle_trade_message'):
+                                handler.handle_trade_message(content, pattern)
+
                         self._send_push_message(pattern, content)
                         self.last_push_time = time.time() * 1000
                         

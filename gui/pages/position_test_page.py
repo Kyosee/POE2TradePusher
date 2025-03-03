@@ -1,8 +1,10 @@
-from .recognition_base_page import RecognitionBasePage
-import tkinter as tk
-from tkinter import ttk
-from PIL import Image, ImageTk
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                                    QLineEdit, QFrame, QSpinBox)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QImage, QPixmap
 import cv2
+import numpy as np
+from .recognition_base_page import RecognitionBasePage
 from core.process_modules.take_out_item import TakeOutItemModule
 
 class PositionTestPage(RecognitionBasePage):
@@ -12,53 +14,95 @@ class PositionTestPage(RecognitionBasePage):
         # 创建取出模块实例
         self.take_out_module = TakeOutItemModule()
         
+        # 设置默认的模板路径
+        from pathlib import Path
+        template_path = Path("assets/rec/grid.png")
+        if template_path.exists():
+            self.set_template(str(template_path))
+        
     def _update_preview(self, cv_image):
         """更新预览图像"""
         try:
-            # 转换为PIL格式并更新预览
-            pil_image = Image.fromarray(cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB))
-            photo = ImageTk.PhotoImage(pil_image)
-            self.preview_label.configure(image=photo)
-            self.preview_label.image = photo
+            # 转换OpenCV图像为QPixmap
+            height, width = cv_image.shape[:2]
+            
+            # 计算缩放比例以适应预览区域（宽度800像素）
+            target_width = 800
+            ratio = target_width / width
+            target_height = int(height * ratio)
+            
+            # 调整图像大小
+            cv_image = cv2.resize(cv_image, (target_width, target_height))
+            
+            # 转换为RGB格式
+            rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            h, w, ch = rgb_image.shape
+            
+            # 创建QImage
+            qimg = QImage(rgb_image.data, w, h, ch * w, QImage.Format_RGB888)
+            
+            # 转换为QPixmap并显示
+            pixmap = QPixmap.fromImage(qimg)
+            self.preview_label.setPixmap(pixmap)
+            
         except Exception as e:
             self._add_log(f"更新预览图像失败: {str(e)}", "ERROR")
         
     def _create_search_frame(self):
         """创建搜索栏"""
+        # 调用父类方法创建基本框架
         super()._create_search_frame()
         
         # 修改识别按钮文本
-        self.recognize_btn.configure(text="识别并取出")
+        self.recognize_btn.setText("识别并取出")
         
-        # 在搜索框架中创建输入区域
-        search_frame = self.recognize_btn.master.master.master  # 获取LabelFrame
-        self.input_frame = ttk.Frame(search_frame)
-        self.input_frame.pack(fill=tk.X, padx=6, pady=6)
+        # 创建输入区域框架
+        input_frame = QFrame()
+        input_frame.setProperty('class', 'card-frame')
+        input_layout = QVBoxLayout(input_frame)
+        input_layout.setContentsMargins(10, 10, 10, 10)
         
-        # 横向和纵向位置输入框
-        coord_frame = ttk.Frame(self.input_frame)
-        coord_frame.pack(fill=tk.X, pady=6)
+        # 标题
+        title_label = QLabel("定位设置")
+        title_label.setProperty('class', 'card-title')
+        self.main_layout.addWidget(title_label)
+        
+        # 创建坐标输入区域
+        coord_layout = QHBoxLayout()
         
         # 横向位置
-        pos1_frame = ttk.Frame(coord_frame)
-        pos1_frame.pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Label(pos1_frame, text="横向位置:").pack(side=tk.LEFT)
-        self.position1_var = tk.StringVar(value="1")
-        ttk.Entry(pos1_frame, textvariable=self.position1_var, width=10).pack(side=tk.LEFT)
+        pos1_layout = QHBoxLayout()
+        pos1_layout.addWidget(QLabel("横向位置:"))
+        self.position1_spin = QSpinBox()
+        self.position1_spin.setRange(1, 24)
+        self.position1_spin.setValue(1)
+        pos1_layout.addWidget(self.position1_spin)
+        coord_layout.addLayout(pos1_layout)
+        
+        coord_layout.addSpacing(20)
         
         # 纵向位置
-        pos2_frame = ttk.Frame(coord_frame)
-        pos2_frame.pack(side=tk.LEFT)
-        ttk.Label(pos2_frame, text="纵向位置:").pack(side=tk.LEFT)
-        self.position2_var = tk.StringVar(value="1")
-        ttk.Entry(pos2_frame, textvariable=self.position2_var, width=10).pack(side=tk.LEFT)
+        pos2_layout = QHBoxLayout()
+        pos2_layout.addWidget(QLabel("纵向位置:"))
+        self.position2_spin = QSpinBox()
+        self.position2_spin.setRange(1, 24)
+        self.position2_spin.setValue(1)
+        pos2_layout.addWidget(self.position2_spin)
+        coord_layout.addLayout(pos2_layout)
+        
+        coord_layout.addStretch()
+        
+        input_layout.addLayout(coord_layout)
+        
+        # 插入到主布局中，位于命令按钮下方
+        self.main_layout.insertWidget(1, input_frame)
         
     def _do_recognition(self):
         """执行识别并取出装备"""
         try:
             # 获取输入的坐标值
-            p1_num = int(self.position1_var.get())
-            p2_num = int(self.position2_var.get())
+            p1_num = self.position1_spin.value()
+            p2_num = self.position2_spin.value()
             
             # 执行取出装备模块（启用预览）
             result = self.take_out_module.process(

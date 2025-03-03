@@ -1,122 +1,112 @@
-from tkinter import *
-from tkinter import ttk, filedialog, scrolledtext
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, 
+                                    QTextEdit, QPushButton, QFileDialog)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QTextCharFormat, QColor, QTextCursor
 import time
 
-class LogPage(ttk.Frame):
+class LogPage(QWidget):
     def __init__(self, master, callback_log, callback_status):
-        super().__init__(master, style='Content.TFrame')
+        super().__init__(master)
         self.log_message = callback_log
         self.status_bar = callback_status
+        
+        self.main_layout = QHBoxLayout(self)
+        self.main_layout.setContentsMargins(12, 6, 12, 6)
         
         self._create_log_area()
         
     def _create_log_area(self):
         """创建日志区域"""
-        # 日志容器
-        log_container = Frame(self, bg="white", relief="solid", bd=1)
-        log_container.pack(fill=BOTH, expand=True, padx=12, pady=6)
-        log_container.columnconfigure(0, weight=1)
-        log_container.rowconfigure(0, weight=1)
+        # 创建日志文本区域
+        self.log_area = QTextEdit()
+        self.log_area.setReadOnly(True)
+        self.log_area.setFont(self.font())
         
-        # 文本区域
-        self.log_area = scrolledtext.ScrolledText(
-            log_container,
-            wrap=WORD,
-            font=('微软雅黑', 9),
-            bg="white",
-            relief="flat",
-            borderwidth=0,
-            padx=8,
-            pady=8,
-            selectbackground='#e1e1e1',
-            selectforeground='#2C2C2C',
-        )
-        self.log_area.grid(row=0, column=0, sticky="nsew", padx=(0, 2))
-        self.log_area.configure(state='disabled')
+        # 设置样式
+        self.log_area.setStyleSheet("""
+            QTextEdit {
+                background-color: white;
+                border: 1px solid #E6E7E8;
+                border-radius: 2px;
+                padding: 8px;
+            }
+            QTextEdit:focus {
+                border: 1px solid #07C160;
+            }
+        """)
         
-        # 滚动条
-        scrollbar = Scrollbar(log_container, orient="vertical", command=self.log_area.yview)
-        scrollbar.grid(row=0, column=0, sticky="nse")
-        self.log_area.configure(yscrollcommand=scrollbar.set)
+        # 创建按钮区域
+        button_layout = QVBoxLayout()
+        button_layout.setSpacing(5)
         
-        # 右侧按钮区域
-        right_panel = Frame(log_container, bg="white", width=100)
-        right_panel.grid(row=0, column=1, sticky="ns", padx=(2, 0))
-        right_panel.grid_propagate(False)
+        # 清空按钮
+        self.clear_log_btn = QPushButton("清空")
+        self.clear_log_btn.setProperty('class', 'danger-button')
+        self.clear_log_btn.clicked.connect(self.clear_log)
+        button_layout.addWidget(self.clear_log_btn)
         
-        # 添加按钮
-        self.clear_log_btn = ttk.Button(
-            right_panel, text="清空", command=self.clear_log,
-            style='Control.TButton', width=9
-        )
-        self.clear_log_btn.pack(side=TOP, padx=5, pady=5, fill=X)
+        # 导出按钮
+        self.export_log_btn = QPushButton("导出")
+        self.export_log_btn.setProperty('class', 'normal-button')
+        self.export_log_btn.clicked.connect(self.export_log)
+        button_layout.addWidget(self.export_log_btn)
         
-        self.export_log_btn = ttk.Button(
-            right_panel, text="导出", command=self.export_log,
-            style='Control.TButton', width=9
-        )
-        self.export_log_btn.pack(side=TOP, padx=5, pady=5, fill=X)
+        button_layout.addStretch()
+        
+        # 添加到主布局
+        self.main_layout.addWidget(self.log_area)
+        self.main_layout.addLayout(button_layout)
         
     def export_log(self):
         """导出日志到文件"""
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".txt",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-            initialfile=f"trade_log_{time.strftime('%Y%m%d_%H%M%S')}.txt"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "导出日志",
+            f"trade_log_{time.strftime('%Y%m%d_%H%M%S')}.txt",
+            "Text files (*.txt);;All files (*.*)"
         )
+        
         if file_path:
             try:
                 with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(self.log_area.get(1.0, END))
-                self.status_bar.config(text=f"日志已导出: {file_path}")
+                    f.write(self.log_area.toPlainText())
+                self.status_bar(f"日志已导出: {file_path}")
                 self.log_message("日志导出成功")
             except Exception as e:
                 self.log_message(f"日志导出失败: {str(e)}", "ERROR")
                 
     def clear_log(self):
         """清空日志区域"""
-        self.log_area.configure(state='normal')
-        self.log_area.delete(1.0, END)
-        self.log_area.configure(state='disabled')
-        self.status_bar.config(text="日志已清空")
+        self.log_area.clear()
+        self.status_bar("日志已清空")
         
     def append_log(self, message, level="INFO"):
         """添加日志条目"""
-        # 将日志区域设置为可编辑
-        self.log_area.configure(state='normal')
+        # 创建格式
+        format = QTextCharFormat()
+        format.setForeground(QColor(self._get_level_color(level)))
         
-        # 为每条日志创建唯一的标签
-        entry_tag = f"entry_{int(time.time()*1000)}"
+        # 创建条目背景格式
+        entry_format = QTextCharFormat()
+        entry_format.setBackground(QColor('#FBFBFB'))
         
-        # 配置日志级别颜色
-        self.log_area.tag_configure(level, foreground=self._get_level_color(level))
-        
-        # 配置日志条目样式
-        self.log_area.tag_configure(entry_tag,
-                                  background='#FBFBFB',    # 更浅的背景色
-                                  spacing1=2,              # 上边距
-                                  spacing3=8,              # 下边距
-                                  rmargin=8,              # 右边距
-                                  lmargin1=8,             # 左边距
-                                  borderwidth=1,          # 边框宽度
-                                  relief='solid')         # 实线边框样式
+        # 获取光标
+        cursor = self.log_area.textCursor()
+        cursor.movePosition(QTextCursor.End)
         
         # 插入日志条目
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] [{level}] {message}\n"
-        self.log_area.insert(END, log_entry, (level, entry_tag))
         
-        # 添加分隔线
-        line_tag = f"line_{int(time.time()*1000)}"
-        self.log_area.tag_configure(line_tag, foreground='#ffffff')  # 浅灰色
-        separator = "\n"  # 使用下划线字符
-        self.log_area.insert(END, separator, line_tag)
+        # 应用格式并插入文本
+        cursor.insertText(log_entry, format)
         
-        # 返回只读状态
-        self.log_area.configure(state='disabled')
+        # 插入分隔行
+        cursor.insertText("\n")
         
-        # 自动滚动到底部
-        self.log_area.see(END)
+        # 滚动到底部
+        self.log_area.setTextCursor(cursor)
+        self.log_area.ensureCursorVisible()
         
     def _get_level_color(self, level):
         """获取日志级别对应的颜色"""
@@ -134,12 +124,12 @@ class LogPage(ttk.Frame):
         }
         return colors.get(level, "#333333")
         
-    def get_data(self):
+    def get_config_data(self):
         """获取页面数据"""
         # 日志页面不需要保存数据
         return {}
         
-    def set_data(self, data):
+    def set_config_data(self, data):
         """设置页面数据"""
         # 日志页面不需要恢复数据
         pass

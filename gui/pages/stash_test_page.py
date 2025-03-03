@@ -1,5 +1,4 @@
 from .recognition_base_page import RecognitionBasePage
-from PIL import ImageTk
 from core.process_modules.open_stash import OpenStashModule
 
 class StashTestPage(RecognitionBasePage):
@@ -7,6 +6,12 @@ class StashTestPage(RecognitionBasePage):
     def __init__(self, master, callback_log, callback_status, main_window=None):
         super().__init__(master, callback_log, callback_status, main_window)
         self.open_stash_module = OpenStashModule()
+        
+        # 设置默认的模板路径
+        from pathlib import Path
+        template_path = Path("assets/rec/stash_cn.png")
+        if template_path.exists():
+            self.set_template(str(template_path))
         
     def _do_recognition(self):
         """执行仓库识别和点击"""

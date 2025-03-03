@@ -1,156 +1,152 @@
-from tkinter import *
+from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import Qt, Signal, Property, QPropertyAnimation, QEasingCurve, QPointF, QSize, QRectF
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush
 
-class Switch(Canvas):
-    def __init__(self, master, width=60, height=30, pad_x=3, pad_y=3, bg='white', fg='#07C160', *args, **kwargs):
-        super().__init__(master, width=width, height=height, bg=bg, highlightthickness=0)
-        self.width = width
-        self.height = height
-        self.pad_x = pad_x
-        self.pad_y = pad_y
-        self.switch_width = width - (pad_x * 2)
-        self.switch_height = height - (pad_y * 2)
-        self.fg = fg
+class Switch(QWidget):
+    # 信号定义
+    stateChanged = Signal(bool)
+    
+    def __init__(self, parent=None, width=50, height=30):
+        super().__init__(parent)
+        
+        # 初始化position属性
+        self._position = 0.0  # 使用0.0-1.0表示位置，避免具体像素值
+        
+        # 基本属性 - 使用实例变量而非类变量
+        self._width = width
+        self._height = height
+        self._thumb_radius = (height - 4) // 2
+        self._margin = 2
+        
+        # 颜色定义 - iOS7风格
+        self._track_on_color = QColor('#34C759')   # 绿色开启状态
+        self._track_off_color = QColor('#E9E9EA')  # 灰色关闭状态
+        self._thumb_color = QColor('white')        # 白色滑块
+        self._border_color = QColor('#D1D1D6')     # 边框颜色
         
         # 状态变量
-        self.checked = BooleanVar(value=kwargs.get('default', True))
-        self.checked.trace_add('write', self._update_state)
+        self._checked = False
+        self._hover = False
+        self._pressed = False
         
-        # 动画相关
-        self.animation_frames = 5  # 动画帧数
-        self.animation_running = False
-        self.current_x = 0  # 当前滑块x位置
-        self.target_x = 0   # 目标x位置
-        self.hover = False  # 鼠标悬停状态
+        # 动画相关 - 使用浮点数表示位置，避免整数舍入误差
+        self._animation = QPropertyAnimation(self, b"position")
+        self._animation.setDuration(150)  # 动画持续时间
+        self._animation.setEasingCurve(QEasingCurve.OutQuad)  # 缓动曲线
         
-        # 初始化布局
-        self._init_layout()
+        # 设置固定大小
+        self.setFixedSize(width, height)
         
-        # 绑定事件
-        self.bind('<Button-1>', self._toggle)
-        self.bind('<Enter>', self._on_enter)
-        self.bind('<Leave>', self._on_leave)
-        
-    def _init_layout(self):
-        """初始化开关布局和位置"""
-        radius = self.switch_height // 2
-        # 计算目标位置
-        if self.checked.get():
-            self.target_x = self.width - self.pad_x - (self.switch_height - 2)
-        else:
-            self.target_x = self.pad_x
-        self.current_x = self.target_x
-        self._draw()
-        
+        # 允许鼠标追踪以实现悬停效果
+        self.setMouseTracking(True)
+    
+    def _getPosition(self):
+        """获取当前位置值（0.0-1.0）"""
+        return self._position
+    
+    def _setPosition(self, pos):
+        """设置当前位置值（0.0-1.0）"""
+        self._position = pos
+        self.update()
+    
+    # 定义position属性用于动画
+    position = Property(float, _getPosition, _setPosition)
+    
     def _start_animation(self):
         """开始滑块动画"""
-        if not self.animation_running:
-            self.animation_running = True
-            self._animate()
-            
-    def _animate(self):
-        """执行动画帧"""
-        if not self.animation_running:
-            return
-            
-        # 计算下一帧位置
-        dx = (self.target_x - self.current_x) / self.animation_frames
-        self.current_x += dx
+        start_pos = 0.0 if not self._checked else 1.0
+        end_pos = 1.0 if self._checked else 0.0
         
-        # 检查是否到达目标
-        if abs(self.current_x - self.target_x) < 1:
-            self.current_x = self.target_x
-            self.animation_running = False
-        
-        self._draw()
-        
-        # 继续动画
-        if self.animation_running:
-            self.after(16, self._animate)  # 约60fps
-        
-    def _draw(self):
+        self._animation.setStartValue(start_pos)
+        self._animation.setEndValue(end_pos)
+        self._animation.start()
+    
+    def paintEvent(self, event):
         """绘制开关"""
-        self.delete('all')  # 清除画布
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
         
-        # 计算滑块中心位置
-        radius = self.switch_height // 2
-        radius2 = self.switch_height // 0.8
+        # 使用当前位置值（0.0-1.0）作为进度
+        progress = self._position
         
-        # 计算背景颜色（根据滑块位置渐变）
-        progress = (self.current_x - self.pad_x) / (self.width - self.pad_x * 2 - self.switch_height + 2)
-        if progress > 0.5:
-            fill = self.fg
-        else:
-            fill = '#e9e9ea'
-        
-        # 绘制背景（圆角矩形）
-        self.create_rounded_rect(
-            self.pad_x, 
-            self.pad_y, 
-            self.switch_width + self.pad_x,
-            self.switch_height + self.pad_y,
-            radius2,
-            fill=fill
+        # 计算轨道颜色（平滑渐变）
+        track_color = QColor(
+            int(self._track_off_color.red() * (1 - progress) + self._track_on_color.red() * progress),
+            int(self._track_off_color.green() * (1 - progress) + self._track_on_color.green() * progress),
+            int(self._track_off_color.blue() * (1 - progress) + self._track_on_color.blue() * progress)
         )
         
-        # 绘制滑块（白色圆形）
-        thumb_radius = radius - 1 if not self.hover else radius
-        self.create_circle(
-            self.current_x + radius,
-            self.height // 2,
-            thumb_radius,
-            fill='white',
-            outline='#000016' if not self.hover else '#000026'  # 悬停时加深阴影
+        # 绘制轨道（圆角矩形）
+        track_rect = QRectF(0, 0, self._width, self._height)
+        track_radius = self._height / 2
+        
+        # 绘制轨道背景
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(track_color)
+        painter.drawRoundedRect(track_rect, track_radius, track_radius)
+        
+        # 计算滑块位置 - 基于百分比位置
+        available_width = self._width - 2 * self._margin - 2 * self._thumb_radius
+        x_pos = self._margin + progress * available_width
+        y_pos = self._margin
+        
+        # 绘制滑块
+        painter.setPen(QPen(QColor(220, 220, 220, 50), 1))
+        painter.setBrush(QBrush(self._thumb_color))
+        painter.drawEllipse(
+            x_pos,
+            y_pos,
+            self._thumb_radius * 2,
+            self._thumb_radius * 2
         )
-        
-    def create_rounded_rect(self, x1, y1, x2, y2, radius, **kwargs):
-        """绘制圆角矩形"""
-        points = [
-            x1 + radius, y1,
-            x2 - radius, y1,
-            x2, y1,
-            x2, y1 + radius,
-            x2, y2 - radius,
-            x2, y2,
-            x2 - radius, y2,
-            x1 + radius, y2,
-            x1, y2,
-            x1, y2 - radius,
-            x1, y1 + radius,
-            x1, y1
-        ]
-        return self.create_polygon(points, smooth=True, **kwargs)
-        
-    def create_circle(self, x, y, r, **kwargs):
-        """绘制圆形"""
-        return self.create_oval(x - r, y - r, x + r, y + r, **kwargs)
-        
-    def _toggle(self, event=None):
-        """切换开关状态"""
-        self.checked.set(not self.checked.get())
-        
-    def _update_state(self, *args):
-        """状态变化时更新"""
-        # 计算新的目标位置
-        if self.checked.get():
-            self.target_x = self.width - self.pad_x - (self.switch_height - 2)
-        else:
-            self.target_x = self.pad_x
-            
-        # 开始动画
-        self._start_animation()
-        
-    def _on_enter(self, event=None):
-        """鼠标进入时"""
-        self.hover = True
-        self._draw()
-        
-    def _on_leave(self, event=None):
-        """鼠标离开时"""
-        self.hover = False
-        self._draw()
-        
+    
+    def mousePressEvent(self, event):
+        """鼠标点击事件处理"""
+        if event.button() == Qt.LeftButton:
+            self._pressed = True
+            self.update()
+    
+    def mouseReleaseEvent(self, event):
+        """鼠标释放事件处理"""
+        if event.button() == Qt.LeftButton and self._pressed:
+            self._pressed = False
+            self.setChecked(not self._checked)
+            self.update()
+    
+    def enterEvent(self, event):
+        """鼠标进入事件处理"""
+        self._hover = True
+        self.update()
+    
+    def leaveEvent(self, event):
+        """鼠标离开事件处理"""
+        self._hover = False
+        self._pressed = False
+        self.update()
+    
+    def isChecked(self):
+        """获取开关状态"""
+        return self._checked
+    
+    def setChecked(self, checked):
+        """设置开关状态"""
+        if self._checked != checked:
+            self._checked = checked
+            self._start_animation()
+            self.stateChanged.emit(checked)
+            self.update()
+    
+    # 属性定义
+    checked = Property(bool, isChecked, setChecked)
+    
     def get(self):
-        return self.checked.get()
-        
+        """获取状态（兼容旧接口）"""
+        return self.isChecked()
+    
     def set(self, value):
-        self.checked.set(bool(value))
+        """设置状态（兼容旧接口）"""
+        self.setChecked(bool(value))
+    
+    def sizeHint(self):
+        """提供组件的建议大小"""
+        return QSize(self._width, self._height)

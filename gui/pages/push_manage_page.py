@@ -1,144 +1,302 @@
-from tkinter import *
-from tkinter import ttk
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                                    QPushButton, QLineEdit, QFrame, QGridLayout,
+                                    QScrollArea)
+from PySide6.QtCore import Qt
 from gui.widgets.switch import Switch
 from gui.widgets.dialog import MessageDialog
 from ..utils import LoggingMixin, ConfigMixin, show_message
+from push.help_texts import WXPUSHER_HELP, SERVERCHAN_HELP, QMSG_HELP, EMAIL_HELP
 
-class PushManagePage(ttk.Frame, LoggingMixin, ConfigMixin):
+class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
     def __init__(self, master, callback_log, callback_status):
-        ttk.Frame.__init__(self, master, style='Content.TFrame')
+        super().__init__(master)
         LoggingMixin.__init__(self, callback_log, callback_status)
         self.init_config()  # 初始化配置对象
         
+        # 创建主布局
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        
+        # 创建滚动区域
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll_area.setFrameShape(QFrame.NoFrame)
+        
+        # 创建内容容器
+        self.content_widget = QWidget()
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(12, 6, 12, 6)
+        self.content_layout.setSpacing(6)
+        
+        # 设置滚动区域样式
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #F0F0F0;
+                width: 8px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #CDCDCD;
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                border: none;
+                background: none;
+            }
+        """)
+        
         # 创建推送配置区域
         self._create_wxpusher_frame()  # WxPusher配置
+        self._create_serverchan_frame()  # Server酱配置
+        self._create_qmsg_frame()      # Qmsg酱配置
         self._create_email_frame()     # 邮箱配置
+        
+        # 设置滚动区域的内容并添加到主布局
+        self.scroll_area.setWidget(self.content_widget)
+        self.main_layout.addWidget(self.scroll_area)
 
-    def _create_enable_switch(self, parent, text, row=0, column=0, padx=(12,6), pady=3):
+    def _create_enable_switch(self, text):
         """创建启用/禁用开关"""
-        # 创建容器来放置Switch和标签
-        container = ttk.Frame(parent, style='Content.TFrame')
-        container.grid(row=row, column=column, padx=padx, pady=pady, sticky="w")
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
         
         # 创建Switch
-        switch = Switch(container, width=50, height=26, pad_x=3, pad_y=3)
-        switch.pack(side=LEFT, padx=(0, 8))
+        switch = Switch()
         
         # 创建标签
-        label = ttk.Label(container, text=text, style='TLabel')
-        label.pack(side=LEFT)
+        label = QLabel(text)
         
-        return switch.checked
+        layout.addWidget(switch)
+        layout.addWidget(label)
+        layout.addStretch()
+        
+        return container, switch
         
     def _create_wxpusher_frame(self):
         """创建WxPusher配置区域"""
-        self.wxpusher_frame = ttk.LabelFrame(self, text="WxPusher配置")
+        # 创建框架
+        wxpusher_frame = QFrame()
+        wxpusher_frame.setProperty('class', 'card-frame')
+        
+        # 创建布局
+        layout = QGridLayout(wxpusher_frame)
+        layout.setContentsMargins(10, 10, 10, 10)
+        
+        # 标题
+        title_label = QLabel("WxPusher配置")
+        title_label.setProperty('class', 'card-title')
+        layout.addWidget(title_label, 0, 0, 1, 3)
         
         # 启用开关
-        self.wxpusher_enabled = self._create_enable_switch(self.wxpusher_frame, "启用WxPusher推送")
-        self.wxpusher_enabled.trace_add('write', lambda *args: self._on_config_change())
+        switch_container, self.wxpusher_enabled = self._create_enable_switch("启用WxPusher推送")
+        layout.addWidget(switch_container, 1, 0, 1, 3)
+        self.wxpusher_enabled.stateChanged.connect(self._on_config_change)
         
         # AppToken
-        ttk.Label(self.wxpusher_frame, text="App Token:", style='Frame.TLabel').grid(
-            row=1, column=0, padx=(12,0), sticky="e")
-        self.app_token_entry = ttk.Entry(self.wxpusher_frame, width=50, font=('Consolas', 10))
-        self.app_token_entry.grid(row=1, column=1, padx=(0,6), sticky="ew")
-        self.app_token_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
+        layout.addWidget(QLabel("App Token:"), 2, 0)
+        self.app_token_entry = QLineEdit()
+        self.app_token_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.app_token_entry, 2, 1)
         
         # UID
-        ttk.Label(self.wxpusher_frame, text="用户UID:", style='Frame.TLabel').grid(
-            row=2, column=0, padx=(12,0), sticky="e")
-        self.uid_entry = ttk.Entry(self.wxpusher_frame, width=50, font=('Consolas', 10))
-        self.uid_entry.grid(row=2, column=1, padx=(0,6), sticky="ew")
-        self.uid_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
-        
-        # 按钮容器
-        btn_frame = ttk.Frame(self.wxpusher_frame)
-        btn_frame.grid(row=1, column=2, rowspan=2, padx=6, sticky="ns")
-
-        # 添加配置变更追踪变量
-        self.config_changed = False
+        layout.addWidget(QLabel("用户UID:"), 3, 0)
+        self.uid_entry = QLineEdit()
+        self.uid_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.uid_entry, 3, 1)
         
         # 测试按钮
-        self.test_wxpusher_btn = ttk.Button(btn_frame, text="🔔 测试", 
-                                          command=self.test_wxpusher, width=8)
-        self.test_wxpusher_btn.pack(pady=(0,2))
+        self.test_wxpusher_btn = QPushButton("🔔 测试")
+        self.test_wxpusher_btn.clicked.connect(self.test_wxpusher)
+        self.test_wxpusher_btn.setProperty('class', 'normal-button')
+        self.test_wxpusher_btn.setFixedWidth(80)
+        layout.addWidget(self.test_wxpusher_btn, 2, 2)
         
         # 帮助按钮
-        help_btn = ttk.Button(btn_frame, text="❔ 帮助",
-                             command=self.show_wxpusher_help, width=8,
-                             style='Control.Save.TButton')
-        help_btn.pack()
+        help_btn = QPushButton("❔ 帮助")
+        help_btn.clicked.connect(self.show_wxpusher_help)
+        help_btn.setProperty('class', 'control-save-button')
+        help_btn.setFixedWidth(80)
+        layout.addWidget(help_btn, 3, 2)
         
-        # 布局
-        self.wxpusher_frame.pack(fill=X, padx=12, pady=(6,3))
-        self.wxpusher_frame.columnconfigure(1, weight=1)
+        self.content_layout.addWidget(wxpusher_frame)
         
     def _create_email_frame(self):
         """创建邮箱配置区域"""
-        self.email_frame = ttk.LabelFrame(self, text="邮箱配置")
+        # 创建框架
+        email_frame = QFrame()
+        email_frame.setProperty('class', 'card-frame')
+        
+        # 创建布局
+        layout = QGridLayout(email_frame)
+        layout.setContentsMargins(10, 10, 10, 10)
+        
+        # 标题
+        title_label = QLabel("邮箱配置")
+        title_label.setProperty('class', 'card-title')
+        layout.addWidget(title_label, 0, 0, 1, 3)
         
         # 启用开关
-        self.email_enabled = self._create_enable_switch(self.email_frame, "启用邮箱推送")
-        self.email_enabled.trace_add('write', lambda *args: self._on_config_change())
+        switch_container, self.email_enabled = self._create_enable_switch("启用邮箱推送")
+        layout.addWidget(switch_container, 1, 0, 1, 3)
+        self.email_enabled.stateChanged.connect(self._on_config_change)
         
         # SMTP服务器
-        ttk.Label(self.email_frame, text="SMTP服务器:", style='Frame.TLabel').grid(
-            row=1, column=0, padx=(12,0), sticky="e")
-        self.smtp_server_entry = ttk.Entry(self.email_frame, width=50, font=('Consolas', 10))
-        self.smtp_server_entry.grid(row=1, column=1, padx=(0,6), sticky="ew")
-        self.smtp_server_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
+        layout.addWidget(QLabel("SMTP服务器:"), 2, 0)
+        self.smtp_server_entry = QLineEdit()
+        self.smtp_server_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.smtp_server_entry, 2, 1)
         
         # SMTP端口
-        ttk.Label(self.email_frame, text="SMTP端口:", style='Frame.TLabel').grid(
-            row=2, column=0, padx=(12,0), sticky="e")
-        self.smtp_port_entry = ttk.Entry(self.email_frame, width=50, font=('Consolas', 10))
-        self.smtp_port_entry.grid(row=2, column=1, padx=(0,6), sticky="ew")
-        self.smtp_port_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
+        layout.addWidget(QLabel("SMTP端口:"), 3, 0)
+        self.smtp_port_entry = QLineEdit()
+        self.smtp_port_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.smtp_port_entry, 3, 1)
         
         # 发件人邮箱
-        ttk.Label(self.email_frame, text="发件人邮箱:", style='Frame.TLabel').grid(
-            row=3, column=0, padx=(12,0), sticky="e")
-        self.sender_email_entry = ttk.Entry(self.email_frame, width=50, font=('Consolas', 10))
-        self.sender_email_entry.grid(row=3, column=1, padx=(0,6), sticky="ew")
-        self.sender_email_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
+        layout.addWidget(QLabel("发件人邮箱:"), 4, 0)
+        self.sender_email_entry = QLineEdit()
+        self.sender_email_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.sender_email_entry, 4, 1)
         
         # 邮箱密码/授权码
-        ttk.Label(self.email_frame, text="密码/授权码:", style='Frame.TLabel').grid(
-            row=4, column=0, padx=(12,0), sticky="e")
-        self.email_password_entry = ttk.Entry(self.email_frame, width=50, font=('Consolas', 10), show='*')
-        self.email_password_entry.grid(row=4, column=1, padx=(0,6), sticky="ew")
-        self.email_password_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
+        layout.addWidget(QLabel("密码/授权码:"), 5, 0)
+        self.email_password_entry = QLineEdit()
+        self.email_password_entry.setEchoMode(QLineEdit.Password)
+        self.email_password_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.email_password_entry, 5, 1)
         
         # 收件人邮箱
-        ttk.Label(self.email_frame, text="收件人邮箱:", style='Frame.TLabel').grid(
-            row=5, column=0, padx=(12,0), sticky="e")
-        self.receiver_email_entry = ttk.Entry(self.email_frame, width=50, font=('Consolas', 10))
-        self.receiver_email_entry.grid(row=5, column=1, padx=(0,6), sticky="ew")
-        self.receiver_email_entry.bind('<KeyRelease>', lambda e: self._on_config_change())
+        layout.addWidget(QLabel("收件人邮箱:"), 6, 0)
+        self.receiver_email_entry = QLineEdit()
+        self.receiver_email_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.receiver_email_entry, 6, 1)
         
         # 按钮容器
-        btn_frame = ttk.Frame(self.email_frame)
-        btn_frame.grid(row=1, column=2, rowspan=2, padx=6, sticky="ns")
+        btn_container = QWidget()
+        btn_layout = QHBoxLayout(btn_container)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(8)
         
         # 测试按钮
-        self.test_email_btn = ttk.Button(btn_frame, text="📧 测试", 
-                                       command=self.test_email, width=8)
-        self.test_email_btn.pack(pady=(0,2))
+        self.test_email_btn = QPushButton("📧 测试")
+        self.test_email_btn.clicked.connect(self.test_email)
+        self.test_email_btn.setProperty('class', 'normal-button')
+        self.test_email_btn.setFixedWidth(80)
+        layout.addWidget(self.test_email_btn, 4, 2)
         
         # 帮助按钮
-        help_btn = ttk.Button(btn_frame, text="❔ 帮助",
-                             command=self.show_email_help, width=8,
-                             style='Control.Save.TButton')
-        help_btn.pack()
+        help_btn = QPushButton("❔ 帮助")
+        help_btn.clicked.connect(self.show_email_help)
+        help_btn.setProperty('class', 'control-save-button')
+        help_btn.setFixedWidth(80)
+        layout.addWidget(help_btn, 5, 2)
         
-        # 布局
-        self.email_frame.pack(fill=X, padx=12, pady=(3,6))
-        self.email_frame.columnconfigure(1, weight=1)
+        self.content_layout.addWidget(email_frame)
+
+    def _create_serverchan_frame(self):
+        """创建Server酱配置区域"""
+        # 创建框架
+        serverchan_frame = QFrame()
+        serverchan_frame.setProperty('class', 'card-frame')
+        
+        # 创建布局
+        layout = QGridLayout(serverchan_frame)
+        layout.setContentsMargins(10, 10, 10, 10)
+        
+        # 标题
+        title_label = QLabel("Server酱配置")
+        title_label.setProperty('class', 'card-title')
+        layout.addWidget(title_label, 0, 0, 1, 3)
+        
+        # 启用开关
+        switch_container, self.serverchan_enabled = self._create_enable_switch("启用Server酱推送")
+        layout.addWidget(switch_container, 1, 0, 1, 3)
+        self.serverchan_enabled.stateChanged.connect(self._on_config_change)
+        
+        # SendKey
+        layout.addWidget(QLabel("SendKey:"), 2, 0)
+        self.serverchan_key_entry = QLineEdit()
+        self.serverchan_key_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.serverchan_key_entry, 2, 1)
+        
+        # 测试按钮
+        self.test_serverchan_btn = QPushButton("🔔 测试")
+        self.test_serverchan_btn.clicked.connect(self.test_serverchan)
+        self.test_serverchan_btn.setProperty('class', 'normal-button')
+        self.test_serverchan_btn.setFixedWidth(80)
+        layout.addWidget(self.test_serverchan_btn, 2, 2)
+        
+        # 帮助按钮
+        help_btn = QPushButton("❔ 帮助")
+        help_btn.clicked.connect(self.show_serverchan_help)
+        help_btn.setProperty('class', 'control-save-button')
+        help_btn.setFixedWidth(80)
+        layout.addWidget(help_btn, 3, 2)
+        
+        self.content_layout.addWidget(serverchan_frame)
+
+    def _create_qmsg_frame(self):
+        """创建Qmsg酱配置区域"""
+        # 创建框架
+        qmsg_frame = QFrame()
+        qmsg_frame.setProperty('class', 'card-frame')
+        
+        # 创建布局
+        layout = QGridLayout(qmsg_frame)
+        layout.setContentsMargins(10, 10, 10, 10)
+        
+        # 标题
+        title_label = QLabel("Qmsg酱配置")
+        title_label.setProperty('class', 'card-title')
+        layout.addWidget(title_label, 0, 0, 1, 3)
+        
+        # 启用开关
+        switch_container, self.qmsg_enabled = self._create_enable_switch("启用Qmsg酱推送")
+        layout.addWidget(switch_container, 1, 0, 1, 3)
+        self.qmsg_enabled.stateChanged.connect(self._on_config_change)
+        
+        # Key
+        layout.addWidget(QLabel("Key:"), 2, 0)
+        self.qmsg_key_entry = QLineEdit()
+        self.qmsg_key_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.qmsg_key_entry, 2, 1)
+        
+        # QQ
+        layout.addWidget(QLabel("接收QQ:"), 3, 0)
+        self.qmsg_qq_entry = QLineEdit()
+        self.qmsg_qq_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.qmsg_qq_entry, 3, 1)
+        
+        # 测试按钮
+        self.test_qmsg_btn = QPushButton("🔔 测试")
+        self.test_qmsg_btn.clicked.connect(self.test_qmsg)
+        self.test_qmsg_btn.setProperty('class', 'normal-button')
+        self.test_qmsg_btn.setFixedWidth(80)
+        layout.addWidget(self.test_qmsg_btn, 2, 2)
+        
+        # 帮助按钮
+        help_btn = QPushButton("❔ 帮助")
+        help_btn.clicked.connect(self.show_qmsg_help)
+        help_btn.setProperty('class', 'control-save-button')
+        help_btn.setFixedWidth(80)
+        layout.addWidget(help_btn, 3, 2)
+        
+        self.content_layout.addWidget(qmsg_frame)
         
     def test_wxpusher(self):
         """测试WxPusher配置"""
-        if not self.wxpusher_enabled.get():
+        if not self.wxpusher_enabled.isChecked():
             self.log_message("WxPusher推送未启用", "WARN")
             return
             
@@ -168,7 +326,7 @@ class PushManagePage(ttk.Frame, LoggingMixin, ConfigMixin):
             
     def test_email(self):
         """测试邮箱配置"""
-        if not self.email_enabled.get():
+        if not self.email_enabled.isChecked():
             self.log_message("邮箱推送未启用", "WARN")
             return
             
@@ -201,98 +359,139 @@ class PushManagePage(ttk.Frame, LoggingMixin, ConfigMixin):
         else:
             self.update_status("❌ 测试邮件发送失败")
             self.log_message(message, "ERROR")
+
+    def test_serverchan(self):
+        """测试Server酱配置"""
+        if not self.serverchan_enabled.isChecked():
+            self.log_message("Server酱推送未启用", "WARN")
+            return
+            
+        config = self.get_config_data()
+        
+        if not config.get('serverchan', {}).get('send_key'):
+            self.log_message("请先配置Server酱的SendKey", "ERROR")
+            self.update_status("❌ 缺少SendKey配置")
+            return
+            
+        self.log_message("正在测试Server酱配置...", "INFO")
+        from push.serverchan import ServerChan
+        pusher = ServerChan(config, self.log_message)
+        success, message = pusher.test()
+        
+        if success:
+            self.update_status("✅ 测试推送发送成功")
+            self.log_message(message, "INFO")
+        else:
+            self.update_status("❌ 测试推送发送失败")
+            self.log_message(message, "ERROR")
+
+    def test_qmsg(self):
+        """测试Qmsg酱配置"""
+        if not self.qmsg_enabled.isChecked():
+            self.log_message("Qmsg酱推送未启用", "WARN")
+            return
+            
+        config = self.get_config_data()
+        qmsg_config = config.get('qmsg', {})
+        
+        if not qmsg_config.get('key'):
+            self.log_message("请先配置Qmsg酱的Key", "ERROR")
+            self.update_status("❌ 缺少Key配置")
+            return
+            
+        if not qmsg_config.get('qq'):
+            self.log_message("请先配置接收QQ", "ERROR")
+            self.update_status("❌ 缺少QQ配置")
+            return
+            
+        self.log_message("正在测试Qmsg酱配置...", "INFO")
+        from push.qmsgchan import QmsgChan
+        pusher = QmsgChan(config, self.log_message)
+        success, message = pusher.test()
+        
+        if success:
+            self.update_status("✅ 测试推送发送成功")
+            self.log_message(message, "INFO")
+        else:
+            self.update_status("❌ 测试推送发送失败")
+            self.log_message(message, "ERROR")
         
     def get_config_data(self):
         """获取配置数据"""
         return {
             'wxpusher': {
-                'enabled': self.wxpusher_enabled.get(),
-                'app_token': self.app_token_entry.get(),
-                'uid': self.uid_entry.get()
+                'enabled': self.wxpusher_enabled.isChecked(),
+                'app_token': self.app_token_entry.text(),
+                'uid': self.uid_entry.text()
             },
             'email': {
-                'enabled': self.email_enabled.get(),
-                'smtp_server': self.smtp_server_entry.get(),
-                'smtp_port': self.smtp_port_entry.get(),
-                'sender_email': self.sender_email_entry.get(),
-                'email_password': self.email_password_entry.get(),
-                'receiver_email': self.receiver_email_entry.get()
+                'enabled': self.email_enabled.isChecked(),
+                'smtp_server': self.smtp_server_entry.text(),
+                'smtp_port': self.smtp_port_entry.text(),
+                'sender_email': self.sender_email_entry.text(),
+                'email_password': self.email_password_entry.text(),
+                'receiver_email': self.receiver_email_entry.text()
+            },
+            'serverchan': {
+                'enabled': self.serverchan_enabled.isChecked(),
+                'send_key': self.serverchan_key_entry.text()
+            },
+            'qmsg': {
+                'enabled': self.qmsg_enabled.isChecked(),
+                'key': self.qmsg_key_entry.text(),
+                'qq': self.qmsg_qq_entry.text()
             }
         }
         
     def show_wxpusher_help(self):
         """显示WxPusher配置帮助"""
-        help_text = (
-            "WxPusher配置说明：\n\n"
-            "1. 访问 http://wxpusher.zjiecode.com 注册登录\n\n"
-            "2. 创建应用：\n"
-            "   - 进入应用管理页面\n"
-            "   - 点击「新建应用」\n"
-            "   - 填写应用名称等信息\n"
-            "   - 创建后可获取 App Token\n\n"
-            "3. 获取用户UID：\n"
-            "   - 使用微信扫码关注公众号\n"
-            "   - 进入用户管理页面\n"
-            "   - 可以看到你的用户UID\n\n"
-            "4. 填写配置：\n"
-            "   - 将获取到的 App Token 和 UID 填入对应输入框\n"
-            "   - 点击测试按钮验证配置是否正确"
-        )
-        MessageDialog(self, "WxPusher配置帮助", help_text)
+        dialog = MessageDialog(self, "WxPusher配置帮助", WXPUSHER_HELP)
+        dialog.exec()  # 使用exec()方法显示模态对话框
         
     def show_email_help(self):
         """显示邮箱配置帮助"""
-        help_text = (
-            "邮箱配置说明（以QQ邮箱为例）：\n\n"
-            "1. SMTP服务器和端口：\n"
-            "   - SMTP服务器：smtp.qq.com\n"
-            "   - SMTP端口：465（SSL）\n\n"
-            "2. 获取授权码：\n"
-            "   - 登录QQ邮箱网页版\n"
-            "   - 打开「设置」-「账户」\n"
-            "   - 找到「POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV服务」\n"
-            "   - 开启「POP3/SMTP服务」\n"
-            "   - 按提示操作获取授权码\n\n"
-            "3. 填写配置：\n"
-            "   - 发件人邮箱：你的QQ邮箱\n"
-            "   - 密码/授权码：上一步获取的授权码\n"
-            "   - 收件人邮箱：接收通知的邮箱地址\n\n"
-            "4. 点击测试按钮验证配置是否正确"
-        )
-        MessageDialog(self, "邮箱配置帮助", help_text)
+        dialog = MessageDialog(self, "邮箱配置帮助", EMAIL_HELP)
+        dialog.exec()  # 使用exec()方法显示模态对话框
+
+    def show_serverchan_help(self):
+        """显示Server酱配置帮助"""
+        dialog = MessageDialog(self, "Server酱配置帮助", SERVERCHAN_HELP)
+        dialog.exec()  # 使用exec()方法显示模态对话框
+
+    def show_qmsg_help(self):
+        """显示Qmsg酱配置帮助"""
+        dialog = MessageDialog(self, "Qmsg酱配置帮助", QMSG_HELP)
+        dialog.exec()  # 使用exec()方法显示模态对话框
         
-    def _on_config_change(self, *args):
+    def _on_config_change(self):
         """配置变更处理"""
-        if not self.config_changed and self.save_config:
+        if hasattr(self, 'save_config') and self.save_config:
             self.save_config()
 
     def set_config_data(self, data):
         """设置配置数据"""
-        # 暂时禁用配置变更
-        self.config_changed = True
+        # WxPusher配置
+        wxpusher_data = data.get('wxpusher', {})
+        self.wxpusher_enabled.setChecked(wxpusher_data.get('enabled', False))
+        self.app_token_entry.setText(wxpusher_data.get('app_token', ''))
+        self.uid_entry.setText(wxpusher_data.get('uid', ''))
         
-        try:
-            # WxPusher配置
-            wxpusher_data = data.get('wxpusher', {})
-            self.wxpusher_enabled.set(wxpusher_data.get('enabled', False))
-            self.app_token_entry.delete(0, END)
-            self.app_token_entry.insert(0, wxpusher_data.get('app_token', ''))
-            self.uid_entry.delete(0, END)
-            self.uid_entry.insert(0, wxpusher_data.get('uid', ''))
-            
-            # 邮箱配置
-            email_data = data.get('email', {})
-            self.email_enabled.set(email_data.get('enabled', False))
-            self.smtp_server_entry.delete(0, END)
-            self.smtp_server_entry.insert(0, email_data.get('smtp_server', ''))
-            self.smtp_port_entry.delete(0, END)
-            self.smtp_port_entry.insert(0, email_data.get('smtp_port', ''))
-            self.sender_email_entry.delete(0, END)
-            self.sender_email_entry.insert(0, email_data.get('sender_email', ''))
-            self.email_password_entry.delete(0, END)
-            self.email_password_entry.insert(0, email_data.get('email_password', ''))
-            self.receiver_email_entry.delete(0, END)
-            self.receiver_email_entry.insert(0, email_data.get('receiver_email', ''))
-        finally:
-            # 重新启用配置变更
-            self.config_changed = False
+        # 邮箱配置
+        email_data = data.get('email', {})
+        self.email_enabled.setChecked(email_data.get('enabled', False))
+        self.smtp_server_entry.setText(email_data.get('smtp_server', ''))
+        self.smtp_port_entry.setText(email_data.get('smtp_port', ''))
+        self.sender_email_entry.setText(email_data.get('sender_email', ''))
+        self.email_password_entry.setText(email_data.get('email_password', ''))
+        self.receiver_email_entry.setText(email_data.get('receiver_email', ''))
+        
+        # Server酱配置
+        serverchan_data = data.get('serverchan', {})
+        self.serverchan_enabled.setChecked(serverchan_data.get('enabled', False))
+        self.serverchan_key_entry.setText(serverchan_data.get('send_key', ''))
+        
+        # Qmsg酱配置
+        qmsg_data = data.get('qmsg', {})
+        self.qmsg_enabled.setChecked(qmsg_data.get('enabled', False))
+        self.qmsg_key_entry.setText(qmsg_data.get('key', ''))
+        self.qmsg_qq_entry.setText(qmsg_data.get('qq', ''))

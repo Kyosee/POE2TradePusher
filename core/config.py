@@ -24,6 +24,15 @@ class Config:
                 'sender_email': '',
                 'email_password': '',
                 'receiver_email': ''
+            },
+            'serverchan': {
+                'enabled': False,
+                'send_key': ''
+            },
+            'qmsg': {
+                'enabled': False,
+                'key': '',
+                'qq': ''
             }
         }
         

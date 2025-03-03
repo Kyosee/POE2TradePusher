@@ -1,50 +1,74 @@
-from tkinter import *
-from tkinter import ttk
-from tkinter import TclError
-from PIL import Image, ImageTk
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                                    QPushButton, QLineEdit, QFrame, QMenu,
+                                    QScrollArea)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap, QImage
 import os
 import sys
 from ..utils import LoggingMixin, ConfigMixin, show_message, ask_yes_no
 from ..widgets.dialog import InputDialog
 
-class CurrencyConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
+class CurrencyItem(QFrame):
+    """通货单位项组件"""
+    def __init__(self, parent=None, currency="", img_path=""):
+        super().__init__(parent)
+        self.currency = currency
+        
+        # 设置固定高度
+        self.setFixedHeight(34)
+        self.setProperty('class', 'currency-frame')
+        
+        # 创建布局
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(1, 1, 1, 1)
+        layout.setSpacing(2)
+        
+        # 创建图片标签
+        self.img_label = QLabel()
+        self.img_label.setFixedSize(30, 30)
+        if os.path.exists(img_path):
+            pixmap = QPixmap(img_path)
+            scaled_pixmap = pixmap.scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.img_label.setPixmap(scaled_pixmap)
+        
+        # 创建文本标签
+        self.text_label = QLabel(currency)
+        
+        # 布局
+        layout.addWidget(self.img_label)
+        layout.addWidget(self.text_label, 1)  # 1表示会自动扩展
+        
+class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
     def __init__(self, master, callback_log, callback_status, callback_save=None):
-        ttk.Frame.__init__(self, master, style='Content.TFrame')
+        super().__init__(master)
         LoggingMixin.__init__(self, callback_log, callback_status)
-        self.init_config()  # 初始化配置对象
+        self.init_config()
         self.save_config = callback_save
         self.currency_items = []  # 存储通货单位项的引用
         self.selected_currency_item = None
         
-        # 创建通货单位配置框架
-        self.currency_label_frame = ttk.LabelFrame(self, text="通货单位配置")
-        self.currency_label_frame.pack(fill=BOTH, expand=True, padx=6, pady=3)
+        # 创建主布局
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(12, 6, 12, 6)
+        self.main_layout.setSpacing(6)
         
-        # 创建样式
-        style = ttk.Style()
-        style.configure('Currency.TFrame', background='white')
-        style.configure('CurrencySelected.TFrame', background='#E7F7EE')
-        style.configure('Dialog.TButton', font=('微软雅黑', 9))
+        # 创建标题
+        title_label = QLabel("通货单位配置")
+        title_label.setProperty('class', 'card-title')
+        self.main_layout.addWidget(title_label)
         
-        # 设置框架样式
-        style.layout('Currency.TFrame', [
-            ('Frame.border', {'sticky': 'nsew', 'children': [
-                ('Frame.padding', {'sticky': 'nsew'})
-            ]})
-        ])
-        style.layout('CurrencySelected.TFrame', [
-            ('Frame.border', {'sticky': 'nsew', 'children': [
-                ('Frame.padding', {'sticky': 'nsew'})
-            ]})
-        ])
-        
-        # 配置边框样式
-        style.configure('Currency.TFrame', borderwidth=1, relief='solid', bordercolor='#E5E5E5')
-        style.configure('CurrencySelected.TFrame', borderwidth=1, relief='solid', bordercolor='#07C160')
+        # 创建内容框架
+        content_frame = QFrame()
+        content_frame.setProperty('class', 'card-frame')
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setContentsMargins(10, 10, 10, 10)
+        content_layout.setSpacing(6)
         
         # 创建通货单位配置区域
-        self._create_currency_frame()
+        self._create_currency_frame(content_layout)
         self._setup_currency_menu()
+        
+        self.main_layout.addWidget(content_frame)
         
     def _get_resource_path(self, filename):
         """获取资源文件路径"""
@@ -54,161 +78,105 @@ class CurrencyConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
             base_path = os.path.abspath(".")
         return os.path.join(base_path, "assets", "orb", filename)
         
-    def _create_currency_item(self, currency):
-        """创建通货单位项"""
-        # 创建固定高度的框架
-        frame = ttk.Frame(self.currency_frame_inner, style='Currency.TFrame', height=34)
-        frame.pack(fill=X, padx=0, pady=0)
-        frame.pack_propagate(False)  # 固定高度
-        
-        # 创建标签
-        img_frame = ttk.Frame(frame, width=30, height=30)
-        img_frame.pack(side=LEFT, padx=1)
-        img_frame.pack_propagate(False)  # 固定图片容器大小
-        
-        img_label = Label(img_frame, width=30, height=30)
-        img_path = self._get_resource_path(f"{currency.lower()}.png")
-        
-        try:
-            if os.path.exists(img_path):
-                img = Image.open(img_path)
-                img = img.resize((30, 30), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-                img_label.configure(image=photo)
-                img_label.image = photo  # 保持引用
-        except Exception as e:
-            self.log_message(f"加载图片失败: {e}", "ERROR")
-            
-        img_label.pack(side=LEFT, padx=2)
-        
-        # 通货名称标签
-        text_label = ttk.Label(frame, text=currency, font=('微软雅黑', 10))
-        text_label.pack(side=LEFT, fill=X, expand=True, padx=2)
-        
-        # 绑定事件
-        def on_select(event=None):
-            # 清除其他项的选中状态
-            if self.selected_currency_item and self.selected_currency_item.winfo_exists():
-                try:
-                    self.selected_currency_item.configure(style='Currency.TFrame')
-                except TclError:
-                    pass  # Widget no longer exists
-            # 设置当前项的选中状态
-            frame.configure(style='CurrencySelected.TFrame')
-            self.selected_currency_item = frame
-            
-        frame.bind('<Button-1>', on_select)
-        img_label.bind('<Button-1>', lambda e: on_select())
-        text_label.bind('<Button-1>', lambda e: on_select())
-        
-        # 绑定右键菜单
-        def on_right_click(event):
-            on_select()  # 先选中
-            self._show_currency_menu(event)  # 再显示菜单
-            
-        frame.bind('<Button-3>', on_right_click)
-        text_label.bind('<Button-3>', on_right_click)
-        img_label.bind('<Button-3>', on_right_click)
-        
-        return frame
-        
-    def _create_currency_frame(self):
+    def _create_currency_frame(self, parent_layout):
         """创建通货单位配置区域"""
         # 输入框和按钮
-        input_frame = ttk.Frame(self.currency_label_frame)
-        self.currency_entry = ttk.Entry(input_frame, font=('微软雅黑', 10))
-        self.add_currency_btn = ttk.Button(input_frame, text="➕ 添加", command=self.add_currency)
-        self.clear_currency_btn = ttk.Button(input_frame, text="🔄 清空", command=self.clear_currencies)
+        input_layout = QHBoxLayout()
         
-        # 布局输入区域
-        input_frame.pack(fill=X, padx=6, pady=3)
-        self.currency_entry.pack(side=LEFT, fill=X, expand=True, padx=(0, 3))
-        self.add_currency_btn.pack(side=LEFT, padx=3)
-        self.clear_currency_btn.pack(side=LEFT, padx=3)
+        self.currency_entry = QLineEdit()
+        self.currency_entry.returnPressed.connect(self.add_currency)
         
-        # 通货单位列表容器
-        self.currency_container = ttk.Frame(self.currency_label_frame)
-        self.currency_container.pack(fill=BOTH, expand=True, padx=6, pady=3)
+        self.add_currency_btn = QPushButton("➕ 添加")
+        self.add_currency_btn.clicked.connect(self.add_currency)
+        self.add_currency_btn.setProperty('class', 'normal-button')
         
-        # 创建滚动条和画布
-        self.currency_canvas = Canvas(self.currency_container, bg="white", 
-                                    relief='flat', borderwidth=0,
-                                    highlightthickness=0)
-        self.currency_scrollbar = ttk.Scrollbar(self.currency_container, 
-                                               orient="vertical", 
-                                               command=self.currency_canvas.yview)
-        self.currency_frame_inner = ttk.Frame(self.currency_canvas)
+        self.clear_currency_btn = QPushButton("🔄 清空")
+        self.clear_currency_btn.clicked.connect(self.clear_currencies)
+        self.clear_currency_btn.setProperty('class', 'danger-button')
         
-        # 配置画布和滚动条
-        self.currency_canvas.configure(yscrollcommand=self.currency_scrollbar.set)
-        self.currency_canvas.create_window((0, 0), window=self.currency_frame_inner, 
-                                         anchor='nw', tags=("currency_frame",))
+        input_layout.addWidget(self.currency_entry)
+        input_layout.addWidget(self.add_currency_btn)
+        input_layout.addWidget(self.clear_currency_btn)
         
-        # 布局
-        self.currency_canvas.pack(side=LEFT, fill=BOTH, expand=True)
-        self.currency_scrollbar.pack(side=RIGHT, fill=Y)
+        parent_layout.addLayout(input_layout)
         
-        # 绑定事件
-        self.currency_frame_inner.bind('<Configure>', self._on_frame_configure)
-        self.currency_canvas.bind('<Configure>', self._on_canvas_configure)
-        self.currency_canvas.bind("<MouseWheel>", self._on_mousewheel)
-        self.currency_canvas.bind("<Enter>", lambda e: self.currency_canvas.bind_all("<MouseWheel>", self._on_mousewheel))
-        self.currency_canvas.bind("<Leave>", lambda e: self.currency_canvas.unbind_all("<MouseWheel>"))
-        self.currency_entry.bind('<Return>', lambda e: self.add_currency())
+        # 创建滚动区域
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: white;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #F0F0F0;
+                width: 8px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #CDCDCD;
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                border: none;
+                background: none;
+            }
+        """)
+        
+        # 创建容器widget
+        self.currency_container = QWidget()
+        self.currency_container.setStyleSheet("background: white;")
+        self.currency_layout = QVBoxLayout(self.currency_container)
+        self.currency_layout.setContentsMargins(0, 0, 0, 0)
+        self.currency_layout.setSpacing(0)
+        self.currency_layout.addStretch()  # 添加弹性空间
+        
+        scroll_area.setWidget(self.currency_container)
+        parent_layout.addWidget(scroll_area)
         
     def _setup_currency_menu(self):
         """设置通货单位右键菜单"""
-        self.currency_menu = Menu(self, tearoff=0, font=('微软雅黑', 9))
-        self.currency_menu.configure(bg='white', activebackground='#E7F7EE',
-                                   activeforeground='#07C160', relief='flat')
+        self.currency_menu = QMenu(self)
         
-        # 添加菜单项
-        self.currency_menu.add_command(label="📄 编辑", command=self.edit_currency,
-                                     font=('微软雅黑', 9))
-        self.currency_menu.add_command(label="❌ 删除", command=self.remove_selected_currency,
-                                     font=('微软雅黑', 9))
-        self.currency_menu.add_separator()
-        self.currency_menu.add_command(label="📋 复制", command=self.copy_currency,
-                                     font=('微软雅黑', 9))
+        edit_action = self.currency_menu.addAction("📄 编辑")
+        edit_action.triggered.connect(self.edit_currency)
+        
+        delete_action = self.currency_menu.addAction("❌ 删除")
+        delete_action.triggered.connect(self.remove_selected_currency)
+        
+        self.currency_menu.addSeparator()
+        
+        copy_action = self.currency_menu.addAction("📋 复制")
+        copy_action.triggered.connect(self.copy_currency)
                                      
-    def _update_canvas_scroll(self):
-        """更新canvas的滚动区域"""
-        self.currency_canvas.update_idletasks()
-        self.currency_canvas.configure(scrollregion=self.currency_canvas.bbox("all"))
-        
-    def _on_frame_configure(self, event=None):
-        """处理内部frame大小变化"""
-        self._update_canvas_scroll()
-        
-    def _on_canvas_configure(self, event):
-        """处理画布大小变化"""
-        self.currency_canvas.itemconfig("currency_frame", width=event.width)
-        self._on_frame_configure()
-        
-    def _on_mousewheel(self, event):
-        """处理鼠标滚轮事件"""
-        if self.currency_canvas.winfo_exists():
-            self.currency_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            
-    def add_currency(self, *args):
+    def add_currency(self):
         """添加通货单位"""
-        currency = self.currency_entry.get().strip()
+        currency = self.currency_entry.text().strip()
         if not currency:
             self.log_message("无法添加空通货单位", "WARN")
             return
             
         # 检查是否已存在
         for item in self.currency_items:
-            if item.winfo_children()[1].cget("text") == currency:
+            if item.currency == currency:
                 self.log_message(f"重复通货单位: {currency}", "WARN")
                 return
                 
         # 创建新的通货单位项
-        item_frame = self._create_currency_item(currency)
-        self.currency_items.append(item_frame)
-        self._update_canvas_scroll()
+        img_path = self._get_resource_path(f"{currency.lower()}.png")
+        item = CurrencyItem(currency=currency, img_path=img_path)
         
-        self.currency_entry.delete(0, END)
+        # 设置点击事件
+        item.mousePressEvent = lambda e, item=item: self._on_currency_click(e, item)
+        
+        # 插入到倒数第二个位置（最后一个是stretch）
+        self.currency_layout.insertWidget(len(self.currency_items), item)
+        self.currency_items.append(item)
+        
+        self.currency_entry.clear()
         self.log_message(f"已添加通货单位: {currency}")
         
         # 自动保存配置
@@ -219,58 +187,86 @@ class CurrencyConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
             except Exception as e:
                 self.log_message(f"保存配置失败: {e}", "ERROR")
                 
+    def _on_currency_click(self, event, item):
+        """处理通货单位项点击事件"""
+        # 清除其他项的选中状态
+        if self.selected_currency_item:
+            self.selected_currency_item.setProperty('selected', False)
+            self.selected_currency_item.style().unpolish(self.selected_currency_item)
+            self.selected_currency_item.style().polish(self.selected_currency_item)
+            
+        # 设置当前项的选中状态
+        item.setProperty('selected', True)
+        item.style().unpolish(item)
+        item.style().polish(item)
+        self.selected_currency_item = item
+        
+        # 处理右键点击
+        if event.button() == Qt.RightButton:
+            self.currency_menu.exec_(event.globalPos())
+            
     def edit_currency(self):
         """编辑选中的通货单位"""
-        if not hasattr(self, 'selected_currency_item') or not self.selected_currency_item.winfo_exists():
+        if not self.selected_currency_item:
             return
             
-        try:
-            current_currency = self.selected_currency_item.winfo_children()[1].cget("text")
-        except TclError:
-            return  # Widget no longer exists
+        current_currency = self.selected_currency_item.currency
             
         def save_edit(new_currency):
             if new_currency and new_currency != current_currency:
                 # 检查是否已存在
                 for item in self.currency_items:
                     if item != self.selected_currency_item and \
-                       item.winfo_children()[1].cget("text") == new_currency:
+                       item.currency == new_currency:
                         show_message("提示", "通货单位已存在", "warning")
                         return
                         
                 # 更新通货单位
-                self.selected_currency_item.destroy()
+                index = self.currency_layout.indexOf(self.selected_currency_item)
+                self.currency_layout.removeWidget(self.selected_currency_item)
                 self.currency_items.remove(self.selected_currency_item)
-                new_item = self._create_currency_item(new_currency)
+                self.selected_currency_item.deleteLater()
+                
+                # 创建新项
+                img_path = self._get_resource_path(f"{new_currency.lower()}.png")
+                new_item = CurrencyItem(currency=new_currency, img_path=img_path)
+                new_item.mousePressEvent = lambda e, item=new_item: self._on_currency_click(e, item)
+                
+                self.currency_layout.insertWidget(index, new_item)
                 self.currency_items.append(new_item)
+                self.selected_currency_item = new_item
+                
                 self.log_message(f"通货单位已更新: {current_currency} → {new_currency}")
                 if self.save_config:
                     self.save_config()
                     
-        # 使用InputDialog替代
+        # 使用InputDialog进行编辑
         InputDialog(self, "编辑通货单位", "请输入新的通货单位：", current_currency, save_edit)
             
     def remove_selected_currency(self):
         """删除选中的通货单位"""
-        if hasattr(self, 'selected_currency_item') and self.selected_currency_item.winfo_exists():
-            try:
-                currency = self.selected_currency_item.winfo_children()[1].cget("text")
-            except TclError:
-                return  # Widget no longer exists
-            self.selected_currency_item.destroy()
-            self.currency_items.remove(self.selected_currency_item)
-            self.selected_currency_item = None
-            self.log_message(f"已移除通货单位: {currency}")
-            if self.save_config:
-                self.save_config()
+        if not self.selected_currency_item:
+            return
+            
+        currency = self.selected_currency_item.currency
+        self.currency_layout.removeWidget(self.selected_currency_item)
+        self.currency_items.remove(self.selected_currency_item)
+        self.selected_currency_item.deleteLater()
+        self.selected_currency_item = None
+        
+        self.log_message(f"已移除通货单位: {currency}")
+        if self.save_config:
+            self.save_config()
             
     def clear_currencies(self):
         """清空通货单位"""
         if ask_yes_no("确认清空", "确定要清空所有通货单位吗？\n此操作无法撤销"):
             for item in self.currency_items:
-                item.destroy()
+                self.currency_layout.removeWidget(item)
+                item.deleteLater()
             self.currency_items.clear()
             self.selected_currency_item = None
+            
             self.log_message("已清空通货单位列表")
             self.update_status("✨ 已清空通货单位列表")
             if self.save_config:
@@ -278,43 +274,34 @@ class CurrencyConfigPage(ttk.Frame, LoggingMixin, ConfigMixin):
             
     def copy_currency(self):
         """复制选中的通货单位到剪贴板"""
-        if hasattr(self, 'selected_currency_item') and self.selected_currency_item.winfo_exists():
-            try:
-                currency = self.selected_currency_item.winfo_children()[1].cget("text")
-                self.clipboard_clear()
-                self.clipboard_append(currency)
-                self.update_status(f"已复制: {currency}")
-            except TclError:
-                pass  # Widget no longer exists
-                
-    def _show_currency_menu(self, event):
-        """显示通货单位右键菜单"""
-        if hasattr(self, 'selected_currency_item') and self.selected_currency_item.winfo_exists():
-            self.currency_menu.post(event.x_root, event.y_root)
+        if not self.selected_currency_item:
+            return
+            
+        from PySide6.QtGui import QGuiApplication
+        clipboard = QGuiApplication.clipboard()
+        clipboard.setText(self.selected_currency_item.currency)
+        self.update_status(f"已复制: {self.selected_currency_item.currency}")
             
     def get_config_data(self):
         """获取配置数据"""
-        currencies = []
-        for item in self.currency_items:
-            try:
-                if item.winfo_exists():
-                    currencies.append(item.winfo_children()[1].cget("text"))
-            except TclError:
-                continue  # Skip invalid items
-        return {'currencies': currencies}
+        return {
+            'currencies': [item.currency for item in self.currency_items]
+        }
         
     def set_config_data(self, data):
         """设置配置数据"""
         # 清空现有通货单位
         for item in self.currency_items:
-            item.destroy()
+            self.currency_layout.removeWidget(item)
+            item.deleteLater()
         self.currency_items.clear()
         self.selected_currency_item = None
         
         # 添加新的通货单位
         for currency in data.get('currencies', []):
-            item_frame = self._create_currency_item(currency)
-            self.currency_items.append(item_frame)
-        
-        # 更新滚动区域
-        self._update_canvas_scroll()
+            img_path = self._get_resource_path(f"{currency.lower()}.png")
+            item = CurrencyItem(currency=currency, img_path=img_path)
+            item.mousePressEvent = lambda e, item=item: self._on_currency_click(e, item)
+            
+            self.currency_layout.insertWidget(len(self.currency_items), item)
+            self.currency_items.append(item)

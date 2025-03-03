@@ -1,24 +1,29 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
+from PySide6.QtWidgets import (QMainWindow, QWidget, QPushButton, QLabel, 
+                                    QVBoxLayout, QHBoxLayout, QFrame, QMessageBox)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from .styles import Styles
 from .tray_icon import TrayIcon
-from .pages import BasicConfigPage, ProcessConfigPage, PushManagePage, LogPage, CurrencyConfigPage, StatsPage
+from .pages import BasicConfigPage, PushManagePage, LogPage, CurrencyConfigPage, StatsPage
 from .pages.stash_test_page import StashTestPage
 from .pages.position_test_page import PositionTestPage
 from .pages.command_test_page import CommandTestPage
+from .pages.auto_trade_page import AutoTradePage
 from core.config import Config
 from core.log_monitor import LogMonitor
+from core.auto_trade import AutoTrade
 from push.wxpusher import WxPusher
 from push.email_pusher import EmailPusher
 
-class MainWindow:
+class MainWindow(QMainWindow):
     """主窗口类"""
     
-    def __init__(self, root):
+    def __init__(self):
         """初始化主窗口"""
-        self.root = root
-        self.root.title("POE2 Trade Pusher")
-        self.root.geometry("1000x800")
+        super().__init__()
+        
+        self.setWindowTitle("POE2 Trade Pusher")
+        self.resize(1000, 800)
         self.always_on_top = False
         
         # 初始化组件
@@ -32,8 +37,14 @@ class MainWindow:
         self.current_menu = None
         self.current_submenu = None  # 当前选中的子菜单
         
-        # 设置样式
-        self.styles.setup(root)
+        # 创建中央窗口部件
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        
+        # 创建主布局
+        self.main_layout = QHBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
         
         # 创建界面
         self.create_widgets()
@@ -49,29 +60,38 @@ class MainWindow:
         # 初始化监控器
         self.monitor = None
         
+        # 初始化自动交易
+        self.auto_trade = AutoTrade()
+        
         # 添加初始提示信息
         self.log_message("应用程序已启动，等待配置...", "INFO")
         self.log_message("请配置日志路径和至少一种推送方式", "INFO")
         
+        # 默认显示基本配置页面
+        self._show_basic_config()
+        
     def create_widgets(self):
         """创建界面组件"""
-        # 创建主容器
-        self.main_container = ttk.Frame(self.root)
-        
         # 创建左侧菜单区域
-        self.menu_frame = ttk.Frame(self.main_container, style='Menu.TFrame', width=200)
-        self.menu_frame.pack_propagate(False)  # 固定宽度
+        self.menu_frame = QFrame()
+        self.menu_frame.setFixedWidth(200)
+        self.menu_frame.setProperty('class', 'menu-frame')
+        
+        # 创建菜单布局
+        self.menu_layout = QVBoxLayout(self.menu_frame)
+        self.menu_layout.setContentsMargins(1, 1, 1, 1)
+        self.menu_layout.setSpacing(1)
         
         # 创建菜单按钮
         self.menu_buttons = []
-        self.submenu_frames = {}  # 存储二级菜单框架
+        self.submenu_frames = {}
         
         menu_items = [
             ('基本配置', self._show_basic_config, []),
-            ('流程配置', self._show_process_config, []),
             ('推送配置', self._show_push_manage, []),
             ('通货配置', self._show_currency_config, []),
             ('数据统计', self._show_stats, []),
+            ('自动交易', self._show_auto_trade, []),
             ('触发日志', self._show_log, []),
             ('识别测试', None, [
                 ('仓库测试', self._show_stash_recognition),
@@ -81,14 +101,26 @@ class MainWindow:
         ]
         
         for text, command, submenus in menu_items:
-            btn = ttk.Button(self.menu_frame, text=text, style='Menu.TButton',
-                           command=command if command else lambda t=text: self._toggle_submenu(t))
-            btn.pack(fill=tk.X, pady=1)
+            btn = QPushButton(text)
+            btn.setProperty('class', 'menu-button')
+            if command:
+                btn.clicked.connect(command)
+            else:
+                # 修复二级菜单显示问题，使用functools.partial确保正确传递参数
+                from functools import partial
+                btn.clicked.connect(partial(self._toggle_submenu, text))
+            
+            self.menu_layout.addWidget(btn)
             self.menu_buttons.append(btn)
             
             # 如果有子菜单，创建子菜单框架
             if submenus:
-                submenu_frame = ttk.Frame(self.menu_frame, style='Menu.TFrame')
+                submenu_frame = QFrame()
+                submenu_frame.setProperty('class', 'submenu-frame')
+                submenu_layout = QVBoxLayout(submenu_frame)
+                submenu_layout.setContentsMargins(0, 0, 0, 0)
+                submenu_layout.setSpacing(1)
+                
                 self.submenu_frames[text] = {
                     'frame': submenu_frame,
                     'visible': False,
@@ -97,165 +129,179 @@ class MainWindow:
                 
                 # 创建子菜单按钮
                 for sub_text, sub_command in submenus:
-                    sub_btn = ttk.Button(submenu_frame, text='  ' + sub_text,
-                                       style='SubMenu.TButton',
-                                       command=sub_command)
-                    sub_btn.pack(fill=tk.X, pady=1)
+                    sub_btn = QPushButton('  ' + sub_text)
+                    sub_btn.setProperty('class', 'submenu-button')
+                    sub_btn.clicked.connect(sub_command)
+                    submenu_layout.addWidget(sub_btn)
                     self.submenu_frames[text]['buttons'].append(sub_btn)
-            
+                
+                submenu_frame.hide()
+                self.menu_layout.addWidget(submenu_frame)
+        
         # 添加弹性空间
-        ttk.Frame(self.menu_frame).pack(fill=tk.Y, expand=True)
+        self.menu_layout.addStretch()
         
-        # 控制按钮
-        control_frame = ttk.Frame(self.menu_frame, style='Menu.TFrame')
-        control_frame.pack(fill=tk.X, pady=1)
+        # 创建控制按钮区域
+        control_frame = QFrame()
+        control_frame.setProperty('class', 'control-frame')
+        control_layout = QVBoxLayout(control_frame)
+        control_layout.setContentsMargins(1, 1, 1, 1)
+        control_layout.setSpacing(1)
         
-        # 添加分隔线
-        separator = ttk.Separator(control_frame, orient='horizontal')
-        separator.pack(fill=tk.X, pady=1)
+        # 启动按钮
+        self.start_btn = QPushButton("▶ 开始监控")
+        self.start_btn.setProperty('class', 'control-button')
+        self.start_btn.clicked.connect(self.toggle_monitor)
+        control_layout.addWidget(self.start_btn)
         
-        self.start_btn = ttk.Button(control_frame, text="▶ 开始监控",
-                                   command=self.toggle_monitor,
-                                   style='Control.TButton')
-        self.start_btn.pack(fill=tk.X, pady=(1, 0))
+        # 保存按钮
+        self.save_btn = QPushButton("💾 保存设置")
+        self.save_btn.setProperty('class', 'control-save-button')
+        self.save_btn.clicked.connect(self.save_config)
+        control_layout.addWidget(self.save_btn)
         
-        self.save_btn = ttk.Button(control_frame, text="💾 保存设置",
-                                  command=self.save_config,
-                                  style='Control.Save.TButton')
-        self.save_btn.pack(fill=tk.X, pady=(1, 1))
+        self.menu_layout.addWidget(control_frame)
         
         # 创建右侧内容区域
-        self.content_frame = ttk.Frame(self.main_container, style='Content.TFrame')
+        self.content_frame = QFrame()
+        self.content_frame.setProperty('class', 'content-container')  # 更改样式类
+        
+        # 创建内容布局
+        self.content_layout = QVBoxLayout(self.content_frame)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setSpacing(0)
         
         # 创建各功能页面
         self.basic_config_page = BasicConfigPage(self.content_frame, self.log_message, 
-                                               lambda text: self.status_bar.config(text=text),
-                                               self.save_config)
+                                               self.update_status_bar, self.save_config)
+        self.basic_config_page.setProperty('class', 'page-container')  # 添加样式类
         self.basic_config_page.set_main_window(self)
+        self.content_layout.addWidget(self.basic_config_page)
         
-        self.process_config_page = ProcessConfigPage(self.content_frame, self.log_message,
-                                                   lambda text: self.status_bar.config(text=text),
-                                                   self.save_config)
+        # 其他页面也设置page-container样式
+        
         self.push_manage_page = PushManagePage(self.content_frame, self.log_message, 
-                                             lambda text: self.status_bar.config(text=text))
+                                             self.update_status_bar)
+        self.push_manage_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.push_manage_page)
+        
         self.currency_config_page = CurrencyConfigPage(self.content_frame, self.log_message, 
-                                                     lambda text: self.status_bar.config(text=text),
-                                                     self.save_config)
+                                                     self.update_status_bar, self.save_config)
+        self.currency_config_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.currency_config_page)
+        
         self.log_page = LogPage(self.content_frame, self.log_message, 
-                              lambda text: self.status_bar.config(text=text))
+                              self.update_status_bar)
+        self.log_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.log_page)
+        
         self.stats_page = StatsPage(self.content_frame, self.log_message,
-                                  lambda text: self.status_bar.config(text=text),
-                                  self.save_config)
+                                  self.update_status_bar, self.save_config)
+        self.stats_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.stats_page)
+        
         self.stash_recognition_page = StashTestPage(self.content_frame, self.log_message,
-                                                  lambda text: self.status_bar.config(text=text))
+                                                  self.update_status_bar)
+        self.stash_recognition_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.stash_recognition_page)
+        
         self.grid_recognition_page = PositionTestPage(self.content_frame, self.log_message,
-                                                    lambda text: self.status_bar.config(text=text))
+                                                    self.update_status_bar)
+        self.grid_recognition_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.grid_recognition_page)
+        
         self.command_test_page = CommandTestPage(self.content_frame, self.log_message)
+        self.command_test_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.command_test_page)
+        
+        self.auto_trade_page = AutoTradePage(self.content_frame)
+        self.auto_trade_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.auto_trade_page)
+        
+        # 默认隐藏所有页面
+        self._hide_all_pages()
         
         # 创建状态栏
-        self.status_bar = ttk.Label(self.root, text="就绪", style='Status.TLabel')
+        self.status_bar = QLabel("就绪")
+        self.status_bar.setProperty('class', 'status-label')
+        self.statusBar().addWidget(self.status_bar)
     
     def setup_layout(self):
         """设置界面布局"""
-        # 主容器布局
-        self.main_container.grid(row=0, column=0, sticky='nsew')
+        self.main_layout.addWidget(self.menu_frame)
+        self.main_layout.addWidget(self.content_frame)
         
-        # 左侧菜单布局
-        self.menu_frame.pack(side=tk.LEFT, fill=tk.Y)
-        
-        # 右侧内容区域布局
-        self.content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # 状态栏布局
-        self.status_bar.grid(row=1, column=0, sticky='nsew', padx=12, pady=4)
-        
-        # 主窗口布局权重配置
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        
-        # 默认显示基本配置页面
-        self._show_basic_config()
+    def update_status_bar(self, text):
+        """更新状态栏"""
+        self.status_bar.setText(text)
         
     def _show_basic_config(self):
         """显示基本配置页面"""
         self._hide_all_pages()
-        self.basic_config_page.pack(fill=tk.BOTH, expand=True)
+        self.basic_config_page.show()
         self._update_menu_state(0)
         
-    def _show_process_config(self):
-        """显示流程配置页面"""
-        self._hide_all_pages()
-        self.process_config_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(1)
+    # 已移除流程配置页面
                 
     def _show_push_manage(self):
         """显示推送管理页面"""
         self._hide_all_pages()
-        self.push_manage_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(2)
+        self.push_manage_page.show()
+        self._update_menu_state(1)
 
     def _show_currency_config(self):
         """显示通货配置页面"""
         self._hide_all_pages()
-        self.currency_config_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(3)
+        self.currency_config_page.show()
+        self._update_menu_state(2)
         
     def _show_stats(self):
         """显示数据统计页面"""
         self._hide_all_pages()
-        self.stats_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(4)
+        self.stats_page.show()
+        self._update_menu_state(3)
         
     def _show_log(self):
         """显示日志页面"""
         self._hide_all_pages()
-        self.log_page.pack(fill=tk.BOTH, expand=True)
+        self.log_page.show()
         self._update_menu_state(5)
         
     def _show_stash_recognition(self):
         """显示仓库识别页面"""
         self._hide_all_pages()
-        self.stash_recognition_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(6, '仓库测试')  # 选中识别测试菜单和仓库测试子菜单
-        # 确保二级菜单可见
-        if '识别测试' in self.submenu_frames:
-            submenu_info = self.submenu_frames['识别测试']
-            if not submenu_info['visible']:
-                self._toggle_submenu('识别测试')
+        self.stash_recognition_page.show()
+        self._update_menu_state(6, '仓库测试')
                 
     def _show_command_test(self):
         """显示命令测试页面"""
         self._hide_all_pages()
-        self.command_test_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(6, '命令测试')  # 选中识别测试菜单和命令测试子菜单
-        # 确保二级菜单可见
-        if '识别测试' in self.submenu_frames:
-            submenu_info = self.submenu_frames['识别测试']
-            if not submenu_info['visible']:
-                self._toggle_submenu('识别测试')
+        self.command_test_page.show()
+        self._update_menu_state(6, '命令测试')
         
     def _show_grid_recognition(self):
         """显示仓位识别页面"""
         self._hide_all_pages()
-        self.grid_recognition_page.pack(fill=tk.BOTH, expand=True)
-        self._update_menu_state(6, '定位测试')  # 选中识别测试菜单和定位测试子菜单
-        # 确保二级菜单可见
-        if '识别测试' in self.submenu_frames:
-            submenu_info = self.submenu_frames['识别测试']
-            if not submenu_info['visible']:
-                self._toggle_submenu('识别测试')
+        self.grid_recognition_page.show()
+        self._update_menu_state(6, '定位测试')
+    
+    def _show_auto_trade(self):
+        """显示自动交易页面"""
+        self._hide_all_pages()
+        self.auto_trade_page.show()
+        self._update_menu_state(4)
         
     def _hide_all_pages(self):
         """隐藏所有页面"""
-        self.basic_config_page.pack_forget()
-        self.process_config_page.pack_forget()
-        self.currency_config_page.pack_forget()
-        self.push_manage_page.pack_forget()
-        self.stats_page.pack_forget()
-        self.log_page.pack_forget()
-        self.stash_recognition_page.pack_forget()
-        self.grid_recognition_page.pack_forget()
-        self.command_test_page.pack_forget()
+        self.basic_config_page.hide()
+        self.currency_config_page.hide()
+        self.push_manage_page.hide()
+        self.stats_page.hide()
+        self.log_page.hide()
+        self.stash_recognition_page.hide()
+        self.grid_recognition_page.hide()
+        self.command_test_page.hide()
+        self.auto_trade_page.hide()
         
     def _toggle_submenu(self, menu_text):
         """切换子菜单的显示状态"""
@@ -263,38 +309,34 @@ class MainWindow:
             submenu_info = self.submenu_frames[menu_text]
             submenu_frame = submenu_info['frame']
             
-            # 如果当前子菜单是隐藏的，显示它
-            if not submenu_info['visible']:
-                submenu_frame.pack(fill=tk.X, after=self.menu_buttons[6])  # 在父菜单按钮后显示
-                submenu_info['visible'] = True
+            submenu_info['visible'] = not submenu_info['visible']
+            if submenu_info['visible']:
+                submenu_frame.show()
             else:
-                submenu_frame.pack_forget()
-                submenu_info['visible'] = False
+                submenu_frame.hide()
                 
     def _update_menu_state(self, selected_index, selected_submenu=None):
         """更新菜单按钮状态"""
         for i, btn in enumerate(self.menu_buttons):
-            menu_text = btn.cget('text')
-            
-            # 更新一级菜单状态
-            if i == selected_index:
-                if menu_text in self.submenu_frames and not selected_submenu:
-                    btn.state(['!selected'])  # 如果是有子菜单的项目但没有选中子菜单，取消选中状态
-                else:
-                    btn.state(['selected'])
-            else:
-                btn.state(['!selected'])
+            menu_text = btn.text()
+            btn.setProperty('selected', i == selected_index)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
             
             # 更新二级菜单状态
             if menu_text in self.submenu_frames:
                 submenu_info = self.submenu_frames[menu_text]
                 for sub_btn in submenu_info['buttons']:
-                    sub_text = sub_btn.cget('text').strip()  # 移除前导空格再比较
-                    if i == selected_index and sub_text == selected_submenu:
-                        sub_btn.state(['selected'])
-                        btn.state(['selected'])  # 当子菜单选中时，父菜单也选中
-                    else:
-                        sub_btn.state(['!selected'])
+                    sub_text = sub_btn.text().strip()
+                    is_selected = (i == selected_index and sub_text == selected_submenu)
+                    sub_btn.setProperty('selected', is_selected)
+                    sub_btn.style().unpolish(sub_btn)
+                    sub_btn.style().polish(sub_btn)
+                    
+                    if is_selected:
+                        btn.setProperty('selected', True)
+                        btn.style().unpolish(btn)
+                        btn.style().polish(btn)
         
         # 更新当前选中状态
         self.current_menu = selected_index
@@ -302,13 +344,7 @@ class MainWindow:
         
     def setup_bindings(self):
         """设置事件绑定"""
-        # 快捷键绑定
-        self.root.bind('<Control-s>', lambda e: self.save_config())
-        self.root.bind('<Control-q>', lambda e: self.on_close())
-        self.root.bind('<Escape>', lambda e: self.toggle_window())
-        
-        # 窗口事件绑定
-        self.root.protocol('WM_DELETE_WINDOW', self.on_close)
+        pass
         
     def setup_tray(self):
         """初始化系统托盘"""
@@ -330,30 +366,30 @@ class MainWindow:
         if success:
             # 应用配置到各个页面，但暂时禁用自动保存
             self.basic_config_page.save_config = None
-            self.process_config_page.save_config = None
             self.currency_config_page.save_config = None
             self.push_manage_page.save_config = None
+            self.auto_trade_page.save_config = None
 
             # 设置配置数据
             self.basic_config_page.set_config_data(self.config.config)
-            self.process_config_page.set_config_data(self.config.config)
             self.currency_config_page.set_config_data(self.config.config)
             self.push_manage_page.set_config_data(self.config.config)
+            self.auto_trade_page.set_config_data(self.config.config)
 
             # 恢复自动保存
             self.basic_config_page.save_config = self.save_config
-            self.process_config_page.save_config = self.save_config
             self.currency_config_page.save_config = self.save_config
             self.push_manage_page.save_config = self.save_config
+            self.auto_trade_page.save_config = self.save_config
         
     def save_config(self):
         """保存配置"""
         try:
             # 从各页面获取配置数据
             basic_config = self.basic_config_page.get_config_data()
-            process_config = self.process_config_page.get_config_data()
             currency_config = self.currency_config_page.get_config_data()
             push_config = self.push_manage_page.get_config_data()
+            auto_trade_config = self.auto_trade_page.get_config_data()
             
             # 使用深度更新合并配置
             def deep_merge(current, new):
@@ -368,9 +404,9 @@ class MainWindow:
             
             # 依次合并各部分配置
             deep_merge(merged_config, basic_config)
-            deep_merge(merged_config, process_config)
             deep_merge(merged_config, currency_config)
             deep_merge(merged_config, push_config)
+            deep_merge(merged_config, auto_trade_config)
             
             # 更新并保存配置
             self.config.config = merged_config
@@ -378,13 +414,18 @@ class MainWindow:
             
             # 在日志页面显示结果
             self.log_page.append_log(msg, "INFO" if success else "ERROR")
-            self.status_bar.config(text="✅ 配置已保存" if success else "❌ 配置保存失败")
+            self.status_bar.setText("✅ 配置已保存" if success else "❌ 配置保存失败")
             
             # 2秒后恢复状态栏
-            self.root.after(2000, lambda: self.status_bar.config(text="就绪"))
+            self.timer = self.startTimer(2000)
             
         except Exception as e:
             self.log_page.append_log(f"配置保存失败: {str(e)}", "ERROR")
+            
+    def timerEvent(self, event):
+        """处理定时器事件"""
+        self.killTimer(event.timerId())
+        self.status_bar.setText("就绪")
             
     def toggle_monitor(self):
         """切换监控状态"""
@@ -401,6 +442,15 @@ class MainWindow:
         try:
             # 创建并初始化监控器
             self.monitor = LogMonitor(self.config, self.log_message, self.stats_page)
+            
+            # 配置自动交易回调
+            self.auto_trade.set_callbacks(
+                self.auto_trade_page.update_trade_status,
+                self.auto_trade_page.add_trade_history
+            )
+            
+            # 添加自动交易处理器
+            self.monitor.add_handler(self.auto_trade)
             
             # 根据配置创建并添加推送处理器
             push_data = self.push_manage_page.get_config_data()
@@ -434,9 +484,12 @@ class MainWindow:
             # 启动监控
             if self.monitor.start():
                 self.monitoring = True
-                self.start_btn.config(text="⏹ 停止监控", style='Control.Stop.TButton')
+                self.start_btn.setText("⏹ 停止监控")
+                self.start_btn.setProperty('class', 'control-stop-button')
+                self.start_btn.style().unpolish(self.start_btn)
+                self.start_btn.style().polish(self.start_btn)
                 encoding_info = self.monitor.file_utils.get_encoding_info()
-                self.status_bar.config(text=f"✅ 监控进行中... | 编码: {encoding_info}")
+                self.status_bar.setText(f"✅ 监控进行中... | 编码: {encoding_info}")
             
         except Exception as e:
             self.log_message(f"启动监控失败: {str(e)}", "ERROR")
@@ -447,15 +500,18 @@ class MainWindow:
         if self.monitor:
             self.monitor.stop()
         self.monitoring = False
-        self.start_btn.config(text="▶ 开始监控", style='Control.TButton')
-        self.status_bar.config(text="⏸️ 监控已停止")
+        self.start_btn.setText("▶ 开始监控")
+        self.start_btn.setProperty('class', 'control-button')
+        self.start_btn.style().unpolish(self.start_btn)
+        self.start_btn.style().polish(self.start_btn)
+        self.status_bar.setText("⏸️ 监控已停止")
         
     def _validate_settings(self):
         """验证设置完整性"""
         basic_success, basic_message = self.basic_config_page.validate_config()
         if not basic_success:
             self.log_page.append_log(basic_message, "ERROR")
-            messagebox.showerror("设置不完整", basic_message)
+            QMessageBox.critical(self, "设置不完整", basic_message)
             return False
 
         # 验证是否启用了至少一种推送方式
@@ -466,7 +522,7 @@ class MainWindow:
         if not wxpusher_enabled and not email_enabled:
             msg = "请至少启用一种推送方式"
             self.log_page.append_log(msg, "ERROR")
-            messagebox.showerror("设置不完整", msg)
+            QMessageBox.critical(self, "设置不完整", msg)
             return False
         
         return True
@@ -478,25 +534,31 @@ class MainWindow:
     def toggle_window(self):
         """切换窗口显示状态"""
         if self.is_minimized:
-            self.root.deiconify()
-            self.root.lift()
-            self.root.focus_force()
+            self.show()
+            self.activateWindow()
+            self.raise_()
             if self.always_on_top:
-                self.root.attributes('-topmost', True)
+                self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+                self.show()
             self.is_minimized = False
         else:
-            self.root.withdraw()
+            self.hide()
             self.is_minimized = True
             
     def set_always_on_top(self, value):
         """设置窗口是否置顶"""
         self.always_on_top = value
-        self.root.attributes('-topmost', value)
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, value)
+        if not self.is_minimized:
+            self.show()
             
-    def on_close(self):
+    def closeEvent(self, event):
         """处理窗口关闭事件"""
-        if messagebox.askyesno("确认", "是否要最小化到系统托盘？\n\n选择\"否\"将退出程序"):
-            self.root.withdraw()
+        reply = QMessageBox.question(self, "确认", "是否要最小化到系统托盘？\n\n选择\"否\"将退出程序",
+                                   QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            event.ignore()
+            self.hide()
             self.is_minimized = True
         else:
             self.quit_app()
@@ -512,4 +574,4 @@ class MainWindow:
         if self.monitoring:
             self.toggle_monitor()  # 停止监控
         self.tray_icon.stop()  # 删除托盘图标
-        self.root.quit()
+        self.close()

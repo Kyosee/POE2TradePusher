@@ -1,6 +1,7 @@
-import tkinter as tk
-from tkinter import ttk
-from PIL import ImageGrab, ImageTk, Image
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                                    QPushButton, QFrame, QTextEdit, QScrollArea)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap, QImage
 import win32gui
 import win32con
 import win32api
@@ -8,19 +9,25 @@ import cv2
 import numpy as np
 import os
 from pathlib import Path
+from PIL import ImageGrab
 from ..utils import LoggingMixin, find_window
 
-class RecognitionBasePage(ttk.Frame, LoggingMixin):
+class RecognitionBasePage(QWidget, LoggingMixin):
     """识别功能基类"""
     def __init__(self, master, callback_log, callback_status, main_window=None):
-        ttk.Frame.__init__(self, master, style='Content.TFrame')
+        super().__init__(master)
         LoggingMixin.__init__(self, callback_log, callback_status)
         self.main_window = main_window
         
         self.template_path = None
         self.template = None
         
-        # 界面组件
+        # 创建主布局
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(12, 6, 12, 6)
+        self.main_layout.setSpacing(6)
+        
+        # 创建界面组件
         self._create_search_frame()
         self._create_preview_frame()
         self._create_log_frame()
@@ -28,7 +35,17 @@ class RecognitionBasePage(ttk.Frame, LoggingMixin):
     def _preprocess_image(self, image):
         """图像预处理以提高识别率"""
         # 转换为OpenCV格式
-        img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        if isinstance(image, QImage):
+            # 将QImage转换为numpy数组
+            width = image.width()
+            height = image.height()
+            ptr = image.constBits()
+            ptr.setsize(height * width * 4)  # 32位RGBA
+            arr = np.array(ptr).reshape(height, width, 4)  # RGBA
+            img = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
+        else:
+            # 假设是PIL图像
+            img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         return img
         
     def set_template(self, template_path):
@@ -52,7 +69,7 @@ class RecognitionBasePage(ttk.Frame, LoggingMixin):
             'grid': '仓位'
         }
         title = title_map.get(template_name, template_name)
-        self.recognize_btn.configure(text=f"🔍 识别{title}")
+        self.recognize_btn.setText(f"🔍 识别{title}")
         return True
         
     def validate_template(self):
@@ -67,65 +84,105 @@ class RecognitionBasePage(ttk.Frame, LoggingMixin):
         
     def _create_search_frame(self):
         """创建搜索栏"""
-        search_frame = ttk.LabelFrame(self, text="识别设置")
-        search_frame.pack(fill=tk.X, padx=12, pady=6)
+        # 创建框架
+        search_frame = QFrame()
+        search_frame.setProperty('class', 'card-frame')
+        layout = QHBoxLayout(search_frame)
+        layout.setContentsMargins(10, 10, 10, 10)
         
-        input_frame = ttk.Frame(search_frame)
-        input_frame.pack(fill=tk.X, padx=6, pady=6)
+        # 标题
+        title_label = QLabel("识别设置")
+        title_label.setProperty('class', 'card-title')
+        self.main_layout.addWidget(title_label)
         
-        # 按钮框架
-        btn_frame = ttk.Frame(input_frame)
-        btn_frame.pack(side=tk.LEFT)
+        # 按钮容器
+        btn_container = QWidget()
+        btn_layout = QHBoxLayout(btn_container)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(6)
         
-        self.recognize_btn = ttk.Button(
-            btn_frame, 
-            text="🔍 识别", 
-            command=self._do_recognition,
-            style='Control.TButton'
-        )
-        self.recognize_btn.pack(side=tk.LEFT, padx=3)
+        # 识别按钮
+        self.recognize_btn = QPushButton("🔍 识别")
+        self.recognize_btn.clicked.connect(self._do_recognition)
+        self.recognize_btn.setProperty('class', 'normal-button')
+        btn_layout.addWidget(self.recognize_btn)
         
-        refresh_btn = ttk.Button(
-            btn_frame, 
-            text="🔄 刷新", 
-            command=self._refresh_preview,
-            style='Control.TButton'
-        )
-        refresh_btn.pack(side=tk.LEFT, padx=3)
+        # 刷新按钮
+        refresh_btn = QPushButton("🔄 刷新")
+        refresh_btn.clicked.connect(self._refresh_preview)
+        refresh_btn.setProperty('class', 'normal-button')
+        btn_layout.addWidget(refresh_btn)
+        
+        layout.addWidget(btn_container)
+        layout.addStretch()
+        
+        self.main_layout.addWidget(search_frame)
         
     def _create_preview_frame(self):
         """创建预览区域"""
-        preview_frame = ttk.LabelFrame(self, text="截图预览")
-        preview_frame.pack(fill=tk.BOTH, padx=12, pady=6)
+        # 创建框架
+        preview_frame = QFrame()
+        preview_frame.setProperty('class', 'card-frame')
+        layout = QVBoxLayout(preview_frame)
+        layout.setContentsMargins(10, 10, 10, 10)
         
-        # 创建固定高度的预览容器
-        preview_container = ttk.Frame(preview_frame, height=400)
-        preview_container.pack(fill=tk.BOTH, padx=6, pady=6)
-        preview_container.pack_propagate(False)  # 防止子组件改变容器大小
+        # 标题
+        title_label = QLabel("截图预览")
+        title_label.setProperty('class', 'card-title')
+        self.main_layout.addWidget(title_label)
         
-        self.preview_label = ttk.Label(preview_container)
-        self.preview_label.pack(fill=tk.BOTH, expand=True)
+        # 创建滚动区域
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFixedHeight(400)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # 创建预览标签
+        self.preview_label = QLabel()
+        self.preview_label.setAlignment(Qt.AlignCenter)
+        scroll_area.setWidget(self.preview_label)
+        
+        layout.addWidget(scroll_area)
+        self.main_layout.addWidget(preview_frame)
         
     def _create_log_frame(self):
         """创建日志区域"""
-        log_frame = ttk.LabelFrame(self, text="识别日志")
-        log_frame.pack(fill=tk.BOTH, padx=12, pady=6)
+        # 创建框架
+        log_frame = QFrame()
+        log_frame.setProperty('class', 'card-frame')
+        layout = QVBoxLayout(log_frame)
+        layout.setContentsMargins(10, 10, 10, 10)
         
-        self.log_text = tk.Text(log_frame, height=6, wrap=tk.WORD,
-                               font=('微软雅黑', 9))
-        self.log_text.pack(fill=tk.BOTH, padx=6, pady=6)
+        # 标题
+        title_label = QLabel("识别日志")
+        title_label.setProperty('class', 'card-title')
+        self.main_layout.addWidget(title_label)
         
-        # 添加滚动条
-        scrollbar = ttk.Scrollbar(log_frame, command=self.log_text.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.log_text.configure(yscrollcommand=scrollbar.set)
+        # 日志文本区域
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.log_text.setFixedHeight(120)
+        self.log_text.setStyleSheet("""
+            QTextEdit {
+                background-color: white;
+                border: 1px solid #E6E7E8;
+                border-radius: 2px;
+                padding: 8px;
+                font-family: 微软雅黑;
+                font-size: 9pt;
+            }
+        """)
+        
+        layout.addWidget(self.log_text)
+        self.main_layout.addWidget(log_frame)
         
     def _get_window_name(self):
         """获取游戏窗口名称"""
         default_name = "Path of Exile 2"
         try:
             if self.main_window and hasattr(self.main_window, 'basic_config_page'):
-                window_name = self.main_window.basic_config_page.game_entry.get().strip()
+                window_name = self.main_window.basic_config_page.game_entry.text().strip()
                 return window_name if window_name else default_name
         except Exception:
             pass
@@ -147,6 +204,21 @@ class RecognitionBasePage(ttk.Frame, LoggingMixin):
         """将PIL图像转换为OpenCV格式"""
         return cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
         
+    def _pil_to_pixmap(self, pil_image, target_width=800):
+        """将PIL图像转换为QPixmap"""
+        # 计算缩放比例
+        ratio = target_width / pil_image.width
+        new_height = int(pil_image.height * ratio)
+        
+        # 调整图像大小
+        pil_image = pil_image.resize((target_width, new_height), Image.LANCZOS)
+        
+        # 转换为QImage
+        img_data = pil_image.convert("RGBA").tobytes()
+        qimg = QImage(img_data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
+        
+        return QPixmap.fromImage(qimg)
+        
     def _refresh_preview(self):
         """刷新预览图像"""
         try:
@@ -163,16 +235,9 @@ class RecognitionBasePage(ttk.Frame, LoggingMixin):
             rect = self._get_window_rect(hwnd)
             image = self._grab_screen(rect)
             
-            # 调整图像大小以适应预览区域
-            preview_width = 800
-            ratio = preview_width / image.width
-            preview_height = int(image.height * ratio)
-            image = image.resize((preview_width, preview_height), Image.LANCZOS)
-            
-            # 更新预览
-            photo = ImageTk.PhotoImage(image)
-            self.preview_label.configure(image=photo)
-            self.preview_label.image = photo
+            # 转换为QPixmap并更新预览
+            pixmap = self._pil_to_pixmap(image)
+            self.preview_label.setPixmap(pixmap)
             
             self.update_status("✅ 预览已更新")
             return True
@@ -187,6 +252,8 @@ class RecognitionBasePage(ttk.Frame, LoggingMixin):
             
     def _add_log(self, message, level="INFO"):
         """添加日志"""
-        self.log_text.insert(tk.END, f"{message}\n")
-        self.log_text.see(tk.END)
+        self.log_text.append(message)
+        self.log_text.verticalScrollBar().setValue(
+            self.log_text.verticalScrollBar().maximum()
+        )
         self.log_message(message, level)

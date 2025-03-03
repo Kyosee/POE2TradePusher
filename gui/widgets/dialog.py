@@ -1,84 +1,132 @@
-import tkinter as tk
-from tkinter import ttk
+from PySide6.QtWidgets import (QDialog, QFrame, QPushButton, QLabel, QTextEdit, 
+                                    QLineEdit, QVBoxLayout, QHBoxLayout, QWidget)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 
-class BaseDialog:
+class BaseDialog(QDialog):
     """基础对话框类，用于创建统一风格的对话框"""
     def __init__(self, parent, title, width=300, height=180):
-        self.dialog = tk.Toplevel(parent)
-        self.dialog.title(title)
-        self.dialog.geometry(f"{width}x{height}")
-        self.dialog.transient(parent)
-        self.dialog.grab_set()
-        self.dialog.configure(bg='white')
+        super().__init__(parent)
+        
+        self.setWindowTitle(title)
+        self.setFixedSize(width, height)
+        self.setModal(True)
+        
+        # 如果父窗口是置顶的，对话框也应该置顶
+        if parent and parent.window().windowFlags() & Qt.WindowStaysOnTopHint:
+            self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
         
         # 创建主框架
-        self.main_frame = ttk.Frame(self.dialog, style='Dialog.TFrame')
-        self.main_frame.pack(expand=True, fill='both', padx=2, pady=2)
+        self.main_frame = QFrame()
+        self.main_frame.setProperty('class', 'dialog-frame')
+        
+        # 创建主布局
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(2, 2, 2, 2)
+        self.main_layout.addWidget(self.main_frame)
         
         # 居中显示
         self.center_window()
         
-        # 绑定Escape键关闭对话框
-        self.dialog.bind('<Escape>', lambda e: self.dialog.destroy())
-        
     def center_window(self):
         """将窗口居中显示"""
-        self.dialog.update_idletasks()
-        width = self.dialog.winfo_width()
-        height = self.dialog.winfo_height()
-        x = (self.dialog.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (height // 2)
-        self.dialog.geometry(f'+{x}+{y}')
+        screen_geometry = self.screen().geometry()
+        x = (screen_geometry.width() - self.width()) // 2
+        y = (screen_geometry.height() - self.height()) // 2
+        self.move(x, y)
         
+    def keyPressEvent(self, event):
+        """处理按键事件"""
+        if event.key() == Qt.Key_Escape:
+            self.close()
+        else:
+            super().keyPressEvent(event)
+
 class MessageDialog(BaseDialog):
     """消息对话框，用于显示帮助信息等长文本内容"""
     def __init__(self, parent, title, message, width=600, height=400):
         super().__init__(parent, title, width, height)
         
-        # 创建文本区域
-        self.text = tk.Text(self.main_frame, wrap=tk.WORD, padx=10, pady=10,
-                           font=('微软雅黑', 10))
-        self.text.pack(fill=tk.BOTH, expand=True)
+        # 创建布局
+        layout = QVBoxLayout(self.main_frame)
+        layout.setContentsMargins(0, 0, 0, 0)
         
-        # 插入消息内容
-        self.text.insert('1.0', message)
-        self.text.config(state='disabled')
+        # 创建文本区域
+        self.text = QTextEdit()
+        self.text.setFont(QFont("微软雅黑", 10))
+        self.text.setReadOnly(True)
+        self.text.setPlainText(message)
+        self.text.setContentsMargins(10, 10, 10, 10)
+        layout.addWidget(self.text)
         
         # 确定按钮
-        ttk.Button(self.main_frame, text="确定", 
-                  command=self.dialog.destroy,
-                  style='Dialog.TButton').pack(pady=10)
-                  
+        btn = QPushButton("确定")
+        btn.setProperty('class', 'normal-button')
+        btn.clicked.connect(self.close)
+        btn.setFixedWidth(80)
+        
+        # 按钮容器
+        btn_container = QWidget()
+        btn_layout = QHBoxLayout(btn_container)
+        btn_layout.addWidget(btn)
+        btn_layout.setContentsMargins(0, 0, 0, 10)
+        layout.addWidget(btn_container, alignment=Qt.AlignCenter)
+        
 class InputDialog(BaseDialog):
     """输入对话框，用于编辑单个值"""
     def __init__(self, parent, title, prompt, initial_value="", callback=None):
         super().__init__(parent, title)
         
+        # 保存回调函数
+        self._callback = callback
+        
+        # 创建布局
+        layout = QVBoxLayout(self.main_frame)
+        layout.setContentsMargins(10, 10, 10, 10)
+        
         # 提示文本
-        ttk.Label(self.main_frame, text=prompt,
-                 font=('微软雅黑', 9)).pack(padx=10, pady=(10, 5))
+        prompt_label = QLabel(prompt)
+        prompt_label.setFont(QFont("微软雅黑", 9))
+        layout.addWidget(prompt_label)
         
         # 输入框
-        self.entry = ttk.Entry(self.main_frame, width=40, font=('微软雅黑', 9))
-        self.entry.insert(0, initial_value)
-        self.entry.pack(padx=10, pady=(0, 10))
+        self.entry = QLineEdit()
+        self.entry.setFont(QFont("微软雅黑", 9))
+        self.entry.setText(initial_value)
+        self.entry.setFixedWidth(300)
+        layout.addWidget(self.entry)
         
-        # 按钮框架
-        btn_frame = ttk.Frame(self.main_frame)
-        ttk.Button(btn_frame, text="✔️ 确定", 
-                  command=lambda: self._on_confirm(callback),
-                  style='Dialog.TButton').pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="❌ 取消",
-                  command=self.dialog.destroy,
-                  style='Dialog.TButton').pack(side=tk.LEFT, padx=5)
-        btn_frame.pack(pady=(0, 10))
+        # 按钮容器
+        btn_container = QWidget()
+        btn_layout = QHBoxLayout(btn_container)
+        btn_layout.setContentsMargins(0, 10, 0, 0)
         
-        # 焦点设置和按键绑定
-        self.entry.focus_set()
-        self.dialog.bind('<Return>', lambda e: self._on_confirm(callback))
+        # 确定按钮
+        confirm_btn = QPushButton("✔️ 确定")
+        confirm_btn.setProperty('class', 'normal-button')
+        confirm_btn.clicked.connect(lambda: self._on_confirm(callback))
+        btn_layout.addWidget(confirm_btn)
+        
+        # 取消按钮
+        cancel_btn = QPushButton("❌ 取消")
+        cancel_btn.setProperty('class', 'danger-button')
+        cancel_btn.clicked.connect(self.close)
+        btn_layout.addWidget(cancel_btn)
+        
+        layout.addWidget(btn_container, alignment=Qt.AlignCenter)
+        
+        # 设置焦点
+        self.entry.setFocus()
         
     def _on_confirm(self, callback):
         """确认按钮点击处理"""
         if callback:
-            callback(self.entry.get().strip())
-        self.dialog.destroy()
+            callback(self.entry.text().strip())
+        self.close()
+        
+    def keyPressEvent(self, event):
+        """处理按键事件"""
+        if event.key() == Qt.Key_Return:
+            self._on_confirm(self._callback)
+        else:
+            super().keyPressEvent(event)
