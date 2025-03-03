@@ -44,7 +44,7 @@
     "enabled": false,
     "send_key": ""
   },
-  "qmsg": {
+  "qmsgchan": {
     "enabled": false,
     "key": "",
     "qq": ""

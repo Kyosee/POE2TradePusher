@@ -58,7 +58,7 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         # 创建推送配置区域
         self._create_wxpusher_frame()  # WxPusher配置
         self._create_serverchan_frame()  # Server酱配置
-        self._create_qmsg_frame()      # Qmsg酱配置
+        self._create_qmsgchan_frame()      # Qmsg酱配置
         self._create_email_frame()     # 邮箱配置
         
         # 设置滚动区域的内容并添加到主布局
@@ -247,14 +247,14 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         
         self.content_layout.addWidget(serverchan_frame)
 
-    def _create_qmsg_frame(self):
+    def _create_qmsgchan_frame(self):
         """创建Qmsg酱配置区域"""
         # 创建框架
-        qmsg_frame = QFrame()
-        qmsg_frame.setProperty('class', 'card-frame')
+        qmsgchan_frame = QFrame()
+        qmsgchan_frame.setProperty('class', 'card-frame')
         
         # 创建布局
-        layout = QGridLayout(qmsg_frame)
+        layout = QGridLayout(qmsgchan_frame)
         layout.setContentsMargins(10, 10, 10, 10)
         
         # 标题
@@ -263,37 +263,37 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         layout.addWidget(title_label, 0, 0, 1, 3)
         
         # 启用开关
-        switch_container, self.qmsg_enabled = self._create_enable_switch("启用Qmsg酱推送")
+        switch_container, self.qmsgchan_enabled = self._create_enable_switch("启用Qmsg酱推送")
         layout.addWidget(switch_container, 1, 0, 1, 3)
-        self.qmsg_enabled.stateChanged.connect(self._on_config_change)
+        self.qmsgchan_enabled.stateChanged.connect(self._on_config_change)
         
         # Key
         layout.addWidget(QLabel("Key:"), 2, 0)
-        self.qmsg_key_entry = QLineEdit()
-        self.qmsg_key_entry.textChanged.connect(self._on_config_change)
-        layout.addWidget(self.qmsg_key_entry, 2, 1)
+        self.qmsgchan_key_entry = QLineEdit()
+        self.qmsgchan_key_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.qmsgchan_key_entry, 2, 1)
         
         # QQ
         layout.addWidget(QLabel("接收QQ:"), 3, 0)
-        self.qmsg_qq_entry = QLineEdit()
-        self.qmsg_qq_entry.textChanged.connect(self._on_config_change)
-        layout.addWidget(self.qmsg_qq_entry, 3, 1)
+        self.qmsgchan_qq_entry = QLineEdit()
+        self.qmsgchan_qq_entry.textChanged.connect(self._on_config_change)
+        layout.addWidget(self.qmsgchan_qq_entry, 3, 1)
         
         # 测试按钮
-        self.test_qmsg_btn = QPushButton("🔔 测试")
-        self.test_qmsg_btn.clicked.connect(self.test_qmsg)
-        self.test_qmsg_btn.setProperty('class', 'normal-button')
-        self.test_qmsg_btn.setFixedWidth(80)
-        layout.addWidget(self.test_qmsg_btn, 2, 2)
+        self.test_qmsgchan_btn = QPushButton("🔔 测试")
+        self.test_qmsgchan_btn.clicked.connect(self.test_qmsg)
+        self.test_qmsgchan_btn.setProperty('class', 'normal-button')
+        self.test_qmsgchan_btn.setFixedWidth(80)
+        layout.addWidget(self.test_qmsgchan_btn, 2, 2)
         
         # 帮助按钮
         help_btn = QPushButton("❔ 帮助")
-        help_btn.clicked.connect(self.show_qmsg_help)
+        help_btn.clicked.connect(self.show_qmsgchan_help)
         help_btn.setProperty('class', 'control-save-button')
         help_btn.setFixedWidth(80)
         layout.addWidget(help_btn, 3, 2)
         
-        self.content_layout.addWidget(qmsg_frame)
+        self.content_layout.addWidget(qmsgchan_frame)
         
     def test_wxpusher(self):
         """测试WxPusher配置"""
@@ -404,13 +404,13 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
 
     def test_qmsg(self):
         """测试Qmsg酱配置"""
-        if not self.qmsg_enabled.isChecked():
+        if not self.qmsgchan_enabled.isChecked():
             self.log_message("Qmsg酱推送未启用", "WARN")
             show_message("提示", "Qmsg酱推送未启用", "warning", self)
             return
             
         config = self.get_config_data()
-        qmsg_config = config.get('qmsg', {})
+        qmsg_config = config.get('qmsgchan', {})
         
         if not qmsg_config.get('key'):
             self.log_message("请先配置Qmsg酱的Key", "ERROR")
@@ -459,10 +459,10 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
                 'enabled': self.serverchan_enabled.isChecked(),
                 'send_key': self.serverchan_key_entry.text()
             },
-            'qmsg': {
-                'enabled': self.qmsg_enabled.isChecked(),
-                'key': self.qmsg_key_entry.text(),
-                'qq': self.qmsg_qq_entry.text()
+            'qmsgchan': {
+                'enabled': self.qmsgchan_enabled.isChecked(),
+                'key': self.qmsgchan_key_entry.text(),
+                'qq': self.qmsgchan_qq_entry.text()
             }
         }
         
@@ -484,7 +484,7 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         dialog.exec()  # 使用exec()方法显示模态对话框
         show_message("帮助", "已显示Server酱配置帮助", "info", self)
 
-    def show_qmsg_help(self):
+    def show_qmsgchan_help(self):
         """显示Qmsg酱配置帮助"""
         dialog = MessageDialog(self, "Qmsg酱配置帮助", QMSG_HELP)
         dialog.exec()  # 使用exec()方法显示模态对话框
@@ -519,7 +519,7 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         self.serverchan_key_entry.setText(serverchan_data.get('send_key', ''))
         
         # Qmsg酱配置
-        qmsg_data = data.get('qmsg', {})
-        self.qmsg_enabled.setChecked(qmsg_data.get('enabled', False))
-        self.qmsg_key_entry.setText(qmsg_data.get('key', ''))
-        self.qmsg_qq_entry.setText(qmsg_data.get('qq', ''))
+        qmsg_data = data.get('qmsgchan', {})
+        self.qmsgchan_enabled.setChecked(qmsg_data.get('enabled', False))
+        self.qmsgchan_key_entry.setText(qmsg_data.get('key', ''))
+        self.qmsgchan_qq_entry.setText(qmsg_data.get('qq', ''))

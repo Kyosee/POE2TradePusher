@@ -12,8 +12,6 @@ from .pages.auto_trade_page import AutoTradePage
 from core.config import Config
 from core.log_monitor import LogMonitor
 from core.auto_trade import AutoTrade
-from push.wxpusher import WxPusher
-from push.email_pusher import EmailPusher
 from .widgets.toast import show_toast, Toast
 
 class MainWindow(QMainWindow):
@@ -469,25 +467,40 @@ class MainWindow(QMainWindow):
             push_data = self.push_manage_page.get_config_data()
             handlers_added = 0
             
-            # 添加WxPusher处理器
-            if push_data.get('wxpusher', {}).get('enabled'):
-                wxpusher = WxPusher(self.config, self.log_message)
-                success, msg = wxpusher.validate_config()
-                if success:
-                    self.monitor.add_push_handler(wxpusher)
-                    handlers_added += 1
-                else:
-                    self.log_message(msg, "ERROR")
-                    
-            # 添加Email处理器
-            if push_data.get('email', {}).get('enabled'):
-                emailer = EmailPusher(self.config, self.log_message)
-                success, msg = emailer.validate_config()
-                if success:
-                    self.monitor.add_push_handler(emailer)
-                    handlers_added += 1
-                else:
-                    self.log_message(msg, "ERROR")
+            # 推送平台映射
+            pusher_mapping = {
+                'wxpusher': ('push.wxpusher', 'WxPusher'),
+                'email': ('push.email_pusher', 'EmailPusher'),
+                'serverchan': ('push.serverchan', 'ServerChan'),
+                'qmsgchan': ('push.qmsgchan', 'QmsgChan')
+            }
+            
+            # 动态导入和初始化每个启用的推送平台
+            for platform, config in push_data.items():
+                if isinstance(config, dict) and config.get('enabled'):
+                    if platform not in pusher_mapping:
+                        self.log_message(f"未知的推送平台: {platform}", "ERROR")
+                        continue
+                        
+                    try:
+                        # 动态导入推送类
+                        module_path, class_name = pusher_mapping[platform]
+                        module = __import__(module_path, fromlist=[class_name])
+                        pusher_class = getattr(module, class_name)
+                        
+                        # 实例化并验证配置
+                        pusher = pusher_class(self.config, self.log_message)
+                        success, msg = pusher.validate_config()
+                        
+                        if success:
+                            self.monitor.add_push_handler(pusher)
+                            handlers_added += 1
+                            self.log_message(f"已添加 {class_name} 推送处理器", "INFO")
+                        else:
+                            self.log_message(f"{class_name} 配置验证失败: {msg}", "ERROR")
+                            
+                    except Exception as e:
+                        self.log_message(f"初始化 {platform} 推送处理器失败: {str(e)}", "ERROR")
             
             # 验证是否成功添加了推送处理器
             if handlers_added == 0:
@@ -530,13 +543,14 @@ class MainWindow(QMainWindow):
 
         # 验证是否启用了至少一种推送方式
         push_data = self.push_manage_page.get_config_data()
-        wxpusher_enabled = push_data.get('wxpusher', {}).get('enabled', False)
-        email_enabled = push_data.get('email', {}).get('enabled', False)
+        enabled_pushers = [
+            platform for platform, config in push_data.items()
+            if isinstance(config, dict) and config.get('enabled', False)
+        ]
         
-        if not wxpusher_enabled and not email_enabled:
+        if not enabled_pushers:
             msg = "请至少启用一种推送方式"
             self.log_page.append_log(msg, "ERROR")
-            # 使用Toast组件显示错误
             show_toast(self, "设置不完整", msg, Toast.ERROR)
             return False
         

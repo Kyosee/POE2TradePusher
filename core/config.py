@@ -29,7 +29,7 @@ class Config:
                 'enabled': False,
                 'send_key': ''
             },
-            'qmsg': {
+            'qmsgchan': {
                 'enabled': False,
                 'key': '',
                 'qq': ''

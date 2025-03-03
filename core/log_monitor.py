@@ -94,14 +94,17 @@ class LogMonitor:
             
     def _send_push_message(self, title, content):
         """发送推送消息到所有处理器"""
-        success = False
+        results = []
         for handler in self.push_handlers:
             try:
-                result, _ = handler.send(title, content)
-                success = success or result
+                result, msg = handler.send(title, content)
+                results.append(result)
+                if not result:
+                    self.log_callback(f"推送消息失败: {msg}", "ERROR")
             except Exception as e:
                 self.log_callback(f"推送消息失败: {str(e)}", "ERROR")
-        return success
+                results.append(False)
+        return any(results)  # 至少有一个推送成功就返回True
             
     def _validate_settings(self):
         """验证设置完整性"""

@@ -10,7 +10,7 @@ class QmsgChan(PushBase):
         
     def validate_config(self):
         """验证Qmsg酱配置"""
-        qmsg_config = self.config.get('qmsg', {})
+        qmsg_config = self.config.get('qmsgchan', {})
         key = qmsg_config.get('key')
         qq = qmsg_config.get('qq')
         
@@ -35,8 +35,8 @@ class QmsgChan(PushBase):
             self.log_callback(f"Qmsg酱推送内容: {message}", "ALERT")
             
             # 发送请求
-            key = self.config.get('qmsg', {}).get('key')
-            qq = self.config.get('qmsg', {}).get('qq')
+            key = self.config.get('qmsgchan', {}).get('key')
+            qq = self.config.get('qmsgchan', {}).get('qq')
             response = requests.post(
                 f"{self.api_url}{key}",
                 data={
