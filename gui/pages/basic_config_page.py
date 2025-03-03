@@ -94,7 +94,7 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         interval_layout.addWidget(QLabel("检测间隔(ms):"))
         
         self.interval_spin = QSpinBox()
-        self.interval_spin.setRange(500, 5000)
+        self.interval_spin.setRange(100, 5000)
         self.interval_spin.setSingleStep(100)
         self.interval_spin.setValue(1000)
         self.interval_spin.valueChanged.connect(self._on_settings_change)
@@ -106,6 +106,13 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self.push_interval_entry.setValue(0)
         self.push_interval_entry.valueChanged.connect(self._on_settings_change)
         interval_layout.addWidget(self.push_interval_entry)
+        
+        interval_layout.addWidget(QLabel("通货价格获取间隔(分钟):"))
+        self.currency_interval_spin = QSpinBox()
+        self.currency_interval_spin.setRange(1, 1440)  # 1分钟到24小时
+        self.currency_interval_spin.setValue(5)
+        self.currency_interval_spin.valueChanged.connect(self._on_settings_change)
+        interval_layout.addWidget(self.currency_interval_spin)
         interval_layout.addStretch()
         
         # 置顶设置行
@@ -395,8 +402,8 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
             return False, "请至少添加一个关键词"
             
         interval = data.get('interval', 0)
-        if interval < 500 or interval > 5000:
-            return False, "检测间隔必须在500-5000毫秒之间"
+        if interval < 100 or interval > 5000:
+            return False, "检测间隔必须在100-5000毫秒之间"
             
         push_interval = data.get('push_interval', 0)
         if push_interval < 0:
@@ -444,6 +451,7 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
             'log_path': self.file_entry.text(),
             'interval': self.interval_spin.value(),
             'push_interval': self.push_interval_entry.value(),
+            'currency_interval': self.currency_interval_spin.value(),
             'keywords': keywords,
             'always_on_top': self.top_switch.isChecked(),
             'wxpusher': current_config.get('wxpusher', {
@@ -477,6 +485,7 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self.file_entry.setText(data.get('log_path', ''))
         self.interval_spin.setValue(data.get('interval', 1000))
         self.push_interval_entry.setValue(data.get('push_interval', 0))
+        self.currency_interval_spin.setValue(data.get('currency_interval', 5))
         
         self.keyword_list.clear()
         for kw in data.get('keywords', []):

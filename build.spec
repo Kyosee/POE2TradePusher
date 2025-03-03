@@ -9,8 +9,23 @@ a = Analysis(
     datas=[
         ('assets', 'assets'),  # 包含整个assets目录
         ('config.json.template', '.'),
+        ('docs', 'docs'),  # 包含文档
     ],
-    hiddenimports=[],
+    hiddenimports=[
+        'PIL',
+        'PIL.Image',
+        'PIL.ImageQt',
+        'cv2',
+        'numpy',
+        'PySide6',
+        'PySide6.QtCore',
+        'PySide6.QtGui',
+        'PySide6.QtWidgets',
+        'requests',
+        'psutil',
+        'keyboard',
+        'mouse',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -42,5 +57,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/icon.ico',
+    icon='assets/icon.png',
 )

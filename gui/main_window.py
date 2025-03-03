@@ -13,6 +13,7 @@ from core.config import Config
 from core.log_monitor import LogMonitor
 from core.auto_trade import AutoTrade
 from .widgets.toast import show_toast, Toast
+from utils.currency_fetcher import CurrencyFetcher
 
 class MainWindow(QMainWindow):
     """主窗口类"""
@@ -25,10 +26,13 @@ class MainWindow(QMainWindow):
         self.resize(1000, 800)
         self.always_on_top = False
         
+        # 设置应用图标
+        self.setWindowIcon(QIcon("assets/icon.png"))
+        
         # 初始化组件
         self.styles = Styles()
         self.config = Config()
-        self.tray_icon = TrayIcon()
+        self.tray_icon = TrayIcon(icon_path="assets/icon.png")
         
         # 初始化状态
         self.is_minimized = False
@@ -233,9 +237,27 @@ class MainWindow(QMainWindow):
         self._hide_all_pages()
         
         # 创建状态栏
+        status_layout = QHBoxLayout()
+        status_widget = QWidget()
+        status_widget.setLayout(status_layout)
+        
         self.status_bar = QLabel("就绪")
         self.status_bar.setProperty('class', 'status-label')
-        self.statusBar().addWidget(self.status_bar)
+        status_layout.addWidget(self.status_bar)
+        
+        status_layout.addStretch()
+        
+        self.price_label = QLabel("神圣石-等待获取...")
+        self.price_label.setProperty('class', 'status-label')
+        status_layout.addWidget(self.price_label)
+        
+        self.statusBar().addWidget(status_widget)
+        
+        # 初始化通货价格获取器
+        self.currency_fetcher = CurrencyFetcher()
+        self.currency_fetcher.price_updated.connect(self._update_currency_price)
+        # 立即获取一次价格
+        self.currency_fetcher.fetch_price()
     
     def setup_layout(self):
         """设置界面布局"""
@@ -419,6 +441,9 @@ class MainWindow(QMainWindow):
             deep_merge(merged_config, push_config)
             deep_merge(merged_config, auto_trade_config)
             
+            # 更新通货价格获取间隔
+            self.currency_fetcher.set_interval(merged_config.get('currency_interval', 5))
+            
             # 更新并保存配置
             self.config.config = merged_config
             success, msg = self.config.save()
@@ -516,6 +541,9 @@ class MainWindow(QMainWindow):
                 self.start_btn.style().polish(self.start_btn)
                 encoding_info = self.monitor.file_utils.get_encoding_info()
                 self.status_bar.setText(f"✅ 监控进行中... | 编码: {encoding_info}")
+                
+                # 启动通货价格获取
+                self.currency_fetcher.start()
             
         except Exception as e:
             self.log_message(f"启动监控失败: {str(e)}", "ERROR")
@@ -525,6 +553,8 @@ class MainWindow(QMainWindow):
         """停止监控"""
         if self.monitor:
             self.monitor.stop()
+        if hasattr(self, 'currency_fetcher'):
+            self.currency_fetcher.stop()
         self.monitoring = False
         self.start_btn.setText("▶ 开始监控")
         self.start_btn.setProperty('class', 'control-button')
@@ -602,9 +632,16 @@ class MainWindow(QMainWindow):
             return self.currency_config_page.get_config_data().get('currencies', [])
         return []
 
+    def _update_currency_price(self, price):
+        """更新通货价格显示"""
+        self.price_label.setText(price)
+        self.log_message(f"神圣石价格更新: {price}")
+        
     def quit_app(self):
         """退出应用程序"""
         if self.monitoring:
             self.toggle_monitor()  # 停止监控
+        if hasattr(self, 'currency_fetcher'):
+            self.currency_fetcher.stop()
         self.tray_icon.stop()  # 删除托盘图标
         self.close()
