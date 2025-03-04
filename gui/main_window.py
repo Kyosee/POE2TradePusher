@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QPushButton, QLabel, 
                                     QVBoxLayout, QHBoxLayout, QFrame, QMessageBox)
+import traceback
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon
 from .styles import Styles
@@ -11,7 +12,7 @@ from .pages.command_test_page import CommandTestPage
 from .pages.auto_trade_page import AutoTradePage
 from core.config import Config
 from core.log_monitor import LogMonitor
-from core.auto_trade import AutoTrade
+from core.auto_trade import AutoTrade, TradeConfig
 from .widgets.toast import show_toast, Toast
 from utils.currency_fetcher import CurrencyFetcher
 
@@ -479,14 +480,35 @@ class MainWindow(QMainWindow):
             # 创建并初始化监控器
             self.monitor = LogMonitor(self.config, self.log_message, self.stats_page)
             
+            # 先设置自动交易配置
+            auto_trade_config = self.auto_trade_page.get_config_data().get('auto_trade', {})
+            
             # 配置自动交易回调
             self.auto_trade.set_callbacks(
                 self.auto_trade_page.update_trade_status,
                 self.auto_trade_page.add_trade_history
             )
             
+            # 设置自动交易配置
+            trade_config = TradeConfig(
+                party_timeout_ms=auto_trade_config.get('party_timeout_ms', 30000),
+                trade_timeout_ms=auto_trade_config.get('trade_timeout_ms', 10000),
+                stash_interval_ms=auto_trade_config.get('stash_interval_ms', 1000),
+                trade_interval_ms=auto_trade_config.get('trade_interval_ms', 1000)
+            )
+            self.auto_trade.set_config(trade_config)
+            
             # 添加自动交易处理器
             self.monitor.add_handler(self.auto_trade)
+            self.log_message("已添加自动交易处理器", "SYSTEM")
+            
+            # 根据配置决定是否启用自动交易
+            if auto_trade_config.get('enabled', False):
+                self.auto_trade.enable()
+                self.log_message("自动交易已启用", "SYSTEM")
+            else:
+                self.auto_trade.disable()
+                self.log_message("自动交易已禁用", "SYSTEM")
             
             # 根据配置创建并添加推送处理器
             push_data = self.push_manage_page.get_config_data()
@@ -541,20 +563,28 @@ class MainWindow(QMainWindow):
                 self.start_btn.style().polish(self.start_btn)
                 encoding_info = self.monitor.file_utils.get_encoding_info()
                 self.status_bar.setText(f"✅ 监控进行中... | 编码: {encoding_info}")
+                self.log_message("监控已成功启动", "SYSTEM")
                 
                 # 启动通货价格获取
                 self.currency_fetcher.start()
-            
+                
         except Exception as e:
             self.log_message(f"启动监控失败: {str(e)}", "ERROR")
+            self.log_message(traceback.format_exc(), "DEBUG")
             self.monitoring = False
     
     def _stop_monitoring(self):
         """停止监控"""
         if self.monitor:
             self.monitor.stop()
+            
+        # 确保停止自动交易处理
+        if hasattr(self, 'auto_trade'):
+            self.auto_trade.disable()
+            
         if hasattr(self, 'currency_fetcher'):
             self.currency_fetcher.stop()
+            
         self.monitoring = False
         self.start_btn.setText("▶ 开始监控")
         self.start_btn.setProperty('class', 'control-button')

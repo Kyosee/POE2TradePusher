@@ -10,6 +10,7 @@ from datetime import datetime
 import json
 import os
 import threading
+import queue
 
 from core.process_modules.game_command import GameCommandModule
 from core.process_modules.open_stash import OpenStashModule
@@ -75,6 +76,11 @@ class AutoTrade:
         except ImportError:
             self.has_toast = False
             
+        # 使用队列和专用线程处理交易请求
+        self.trade_queue = queue.Queue()
+        self.trade_thread = None
+        self.trade_thread_running = False
+        
         # 添加交易处理锁，确保一次只处理一个交易
         self.trade_lock = threading.Lock()
         
@@ -123,62 +129,75 @@ class AutoTrade:
 
     def add_log(self, log: str):
         """添加日志消息到历史记录"""
-        self.log_history.append({
-            'timestamp': time.time(),
-            'message': log
-        })
-        # 只保留最近1分钟的日志
-        cutoff_time = time.time() - 60
-        self.log_history = [log for log in self.log_history 
-                          if log['timestamp'] > cutoff_time]
-        
-        # 检查日志是否包含交易相关信息
-        self._process_trade_log(log)
+        try:
+            self.log_history.append({
+                'timestamp': time.time(),
+                'message': log
+            })
+            # 只保留最近1分钟的日志
+            cutoff_time = time.time() - 60
+            self.log_history = [l for l in self.log_history 
+                              if l['timestamp'] > cutoff_time]
+            
+            # 检查日志是否包含交易相关信息并立即处理
+            self._process_trade_log(log)
+            
+            # 添加调试日志
+            self.logger.debug(f"游戏日志已记录: {log[:50]}...")
+        except Exception as e:
+            # 确保日志处理异常不会影响监控线程
+            self.logger.error(f"日志处理异常: {str(e)}")
 
     def handle_trade_message(self, message: str, template: str):
-        """处理交易消息，开始自动交易流程"""
-        # 如果未启用或者当前有交易正在进行，则忽略新的交易消息
-        if not self.enabled or self.trade_state != TradeState.IDLE:
-            self.logger.info(f"忽略交易消息: {'自动交易已禁用' if not self.enabled else '当前有交易正在进行'}")
+        """处理交易消息，将请求放入队列"""
+        # 快速检查是否启用了自动交易
+        if not self.enabled:
+            self.logger.debug("自动交易已禁用，忽略交易消息")
             return
-            
-        # 尝试获取交易处理锁，避免并发处理多个交易
-        if not self.trade_lock.acquire(blocking=False):
-            self.logger.info("另一个交易流程正在处理中，忽略此消息")
-            return
-            
-        try:
-            # 更新交易模板
-            self._load_trade_templates()
+        
+        # 将交易请求添加到队列
+        self.trade_queue.put((message, template))
+        self.logger.debug(f"交易请求已加入队列: {message[:30]}...")
+
+    def _process_trade_request(self, message: str, template: str):
+        """处理单个交易请求"""
+        # 获取锁以确保同一时间只有一个交易进行
+        with self.trade_lock:
+            try:
+                # 如果未启用或当前有交易正在进行，则忽略新的交易消息
+                if not self.enabled or self.trade_state != TradeState.IDLE:
+                    self.logger.info(f"忽略交易消息: {'自动交易已禁用' if not self.enabled else '当前有交易正在进行'}")
+                    return
                 
-            # 尝试使用所有交易模式的模板解析交易消息
-            parsed_data = None
-            
-            # 先尝试使用传入的模板解析
-            parsed_data = self._parse_trade_message(message, template)
-            
-            # 如果失败，尝试使用其他交易模板
-            if not parsed_data:
-                for trade_template in self.trade_templates:
-                    if trade_template != template:  # 避免重复尝试相同模板
-                        parsed_data = self._parse_trade_message(message, trade_template)
-                        if parsed_data:
-                            break
-            
-            if not parsed_data:
-                self.logger.warning(f"无法解析交易消息: {message}")
-                return
-            
-            self._process_trade(parsed_data, message)
+                # 更新交易模板
+                self._load_trade_templates()
+                    
+                # 尝试使用所有交易模式的模板解析交易消息
+                parsed_data = None
                 
-        except Exception as e:
-            self.update_status(f"交易过程出错: {str(e)}")
-            self.logger.error(f"Trade error: {str(e)}", exc_info=True)
-            self._handle_trade_fail(str(e))
-        finally:
-            # 确保在函数结束时释放锁
-            self.trade_lock.release()
-            
+                # 先尝试使用传入的模板解析
+                parsed_data = self._parse_trade_message(message, template)
+                
+                # 如果失败，尝试使用其他交易模板
+                if not parsed_data:
+                    for trade_template in self.trade_templates:
+                        if trade_template != template:  # 避免重复尝试相同模板
+                            parsed_data = self._parse_trade_message(message, trade_template)
+                            if parsed_data:
+                                break
+                
+                if not parsed_data:
+                    self.logger.warning(f"无法解析交易消息: {message}")
+                    return
+                
+                # 处理交易流程
+                self._process_trade(parsed_data, message)
+                    
+            except Exception as e:
+                self.update_status(f"交易过程出错: {str(e)}")
+                self.logger.error(f"Trade error: {str(e)}", exc_info=True)
+                self._handle_trade_fail(str(e))
+
     def _process_trade(self, parsed_data, message):
         """处理交易流程的核心逻辑，从解析数据开始"""
         try:
@@ -369,8 +388,12 @@ class AutoTrade:
 
     def handle_game_log(self, log: str):
         """处理游戏日志"""
-        self.add_log(log)
-        # 无论交易状态如何，始终处理所有日志
+        try:
+            # 这里只记录日志，不再直接处理交易相关状态变化
+            self.add_log(log)
+        except Exception as e:
+            # 确保即使有异常也不会传播到调用者
+            self.logger.error(f"游戏日志处理异常: {str(e)}")
 
     def enable(self):
         """启用自动交易"""
@@ -386,12 +409,19 @@ class AutoTrade:
         self.trade_state = TradeState.IDLE
         self.update_status("自动交易已启用")
         
+        # 启动交易处理线程
+        self._start_trade_thread()
+        
         # 更新配置文件
         self._update_config_state(True)
 
     def disable(self):
         """禁用自动交易"""
         self.enabled = False
+        
+        # 停止交易处理线程
+        self._stop_trade_thread()
+        
         if self.current_user:
             self._handle_trade_fail("自动交易已禁用")
         else:
@@ -478,3 +508,52 @@ class AutoTrade:
         except Exception as e:
             self.logger.error(f"读取配置文件失败: {str(e)}")
             self.trade_templates = []
+
+    def _start_trade_thread(self):
+        """启动交易处理线程"""
+        if self.trade_thread is not None and self.trade_thread.is_alive():
+            return  # 线程已经在运行
+            
+        self.trade_thread_running = True
+        self.trade_thread = threading.Thread(
+            target=self._trade_worker,
+            daemon=True
+        )
+        self.trade_thread.start()
+        self.logger.info("交易处理线程已启动")
+        
+    def _stop_trade_thread(self):
+        """停止交易处理线程"""
+        self.trade_thread_running = False
+        # 添加哨兵值确保线程能够退出
+        if self.trade_thread and self.trade_thread.is_alive():
+            self.trade_queue.put((None, None))
+            self.trade_thread.join(timeout=2.0)
+            self.logger.info("交易处理线程已停止")
+    
+    def _trade_worker(self):
+        """交易处理工作线程"""
+        self.logger.info("交易处理线程开始运行")
+        while self.trade_thread_running:
+            try:
+                # 从队列获取交易请求，设置超时以便能够响应停止信号
+                try:
+                    message, template = self.trade_queue.get(timeout=1.0)
+                    
+                    # 检查是否是停止信号
+                    if message is None and template is None:
+                        break
+                        
+                    # 处理交易请求
+                    self._process_trade_request(message, template)
+                    
+                except queue.Empty:
+                    # 队列为空，继续等待
+                    continue
+                    
+            except Exception as e:
+                self.logger.error(f"交易处理线程异常: {str(e)}", exc_info=True)
+                # 短暂暂停防止CPU占用过高
+                time.sleep(1.0)
+        
+        self.logger.info("交易处理线程已结束")
