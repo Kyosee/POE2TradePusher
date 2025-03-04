@@ -225,21 +225,22 @@ class LogMonitor:
             if self.stop_event.is_set():
                 break
             
-            # 推送间隔检查
-            if push_interval > 0 and (current_time - self.last_push_time) < push_interval:
-                continue
-
-            # 更新所有处理器的日志
+            # 更新所有处理器的日志 - 始终更新日志，无论是否有交易进行中
             for handler in self.handlers:
                 if hasattr(handler, 'handle_game_log'):
                     handler.handle_game_log(line)
 
+            # 推送间隔检查
+            if push_interval > 0 and (current_time - self.last_push_time) < push_interval:
+                continue
+
             # 关键词匹配（支持多关键词组合）
             for kw in self.config.get('keywords', []):
                 pattern = kw.get('pattern', '')
+                mode = kw.get('mode', '消息模式')
                 
                 # 消息模式匹配
-                if self._match_message_mode(pattern, line):
+                if mode == '消息模式' and self._match_message_mode(pattern, line):
                     # 记录消息模式匹配日志
                     log_msg = (
                         f"[消息模式]关键词触发\n"
@@ -252,42 +253,44 @@ class LogMonitor:
                     self.last_push_time = time.time() * 1000
                 
                 # 交易模式匹配
-                match_result = self._match_trade_mode(pattern, line)
-                if match_result:
-                    # 记录交易模式匹配日志
-                    log_msg = (
-                        f"[交易模式]关键词触发\n"
-                        f"触发内容: {line}\n"
-                        f"触发模板: {pattern}\n"
-                        f"解析信息:\n" + 
-                        "\n".join(f"  {k}: {v}" for k, v in match_result.items())
-                    )
-                    self.log_callback(log_msg, "TRADE")
-                    
-                    # 触发自动交易处理器
-                    for handler in self.handlers:
-                        if hasattr(handler, 'handle_trade_message'):
-                            handler.handle_trade_message(line, pattern)
+                elif mode == '交易模式':
+                    match_result = self._match_trade_mode(pattern, line)
+                    if match_result:
+                        # 记录交易模式匹配日志
+                        log_msg = (
+                            f"[交易模式]关键词触发\n"
+                            f"触发内容: {line}\n"
+                            f"触发模板: {pattern}\n"
+                            f"解析信息:\n" + 
+                            "\n".join(f"  {k}: {v}" for k, v in match_result.items())
+                        )
+                        self.log_callback(log_msg, "TRADE")
+                        
+                        # 触发自动交易处理器 - 交易处理器内部会处理是否可以开始新交易
+                        for handler in self.handlers:
+                            if hasattr(handler, 'handle_trade_message'):
+                                handler.handle_trade_message(line, pattern)
 
-                    self._send_push_message(pattern, line)
-                    self.last_push_time = time.time() * 1000
-                    
-                    # 更新交易统计
-                    if self.stats_page:
-                        self.stats_page.increment_message_count()
-                        self.log_callback(f"交易计数已更新", "SYSTEM")
-                    
-                    # 提取通货数量和单位
-                    currency = match_result.get('currency')
-                    try:
-                        amount = float(match_result.get('price', 0))
-                        if currency and amount > 0:
-                            if self.stats_page:
-                                self.stats_page.update_currency_stats(currency, amount)
-                                self.log_callback(f"更新通货统计: {currency} {amount}", "PRICE")
-                    except ValueError:
-                        self.log_callback(f"无效的价格数据: {match_result.get('price')}", "ERROR")
-                    break
+                        self._send_push_message(pattern, line)
+                        self.last_push_time = time.time() * 1000
+                        
+                        # 更新交易统计
+                        if self.stats_page:
+                            self.stats_page.increment_message_count()
+                            self.log_callback(f"交易计数已更新", "SYSTEM")
+                        
+                        # 提取通货数量和单位
+                        currency = match_result.get('currency')
+                        try:
+                            amount = float(match_result.get('price', 0))
+                            if currency and amount > 0:
+                                if self.stats_page:
+                                    self.stats_page.update_currency_stats(currency, amount)
+                                    self.log_callback(f"更新通货统计: {currency} {amount}", "PRICE")
+                        except ValueError:
+                            self.log_callback(f"无效的价格数据: {match_result.get('price')}", "ERROR")
+                        
+                        # 对于交易模式匹配，我们不应该跳出循环，继续处理其他关键词
                             
     def _match_message_mode(self, pattern, content):
         """消息模式匹配"""

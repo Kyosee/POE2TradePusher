@@ -5,8 +5,11 @@ import win32con
 import win32api
 from enum import Enum
 from dataclasses import dataclass
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 from datetime import datetime
+import json
+import os
+import threading
 
 from core.process_modules.game_command import GameCommandModule
 from core.process_modules.open_stash import OpenStashModule
@@ -49,6 +52,9 @@ class AutoTrade:
         self.current_p2_num = None
         self.trade_start_time = None
         
+        # 交易模式关键词模板缓存
+        self.trade_templates = []
+        
         # 初始化流程模块
         self.game_command = GameCommandModule()
         self.open_stash = OpenStashModule()
@@ -68,6 +74,12 @@ class AutoTrade:
             self.logger.error = self._error_with_toast
         except ImportError:
             self.has_toast = False
+            
+        # 添加交易处理锁，确保一次只处理一个交易
+        self.trade_lock = threading.Lock()
+        
+        # 从配置文件读取初始状态
+        self._load_config_state()
             
     def _error_with_toast(self, msg, *args, **kwargs):
         """带Toast提示的错误日志方法"""
@@ -125,17 +137,52 @@ class AutoTrade:
 
     def handle_trade_message(self, message: str, template: str):
         """处理交易消息，开始自动交易流程"""
+        # 如果未启用或者当前有交易正在进行，则忽略新的交易消息
         if not self.enabled or self.trade_state != TradeState.IDLE:
+            self.logger.info(f"忽略交易消息: {'自动交易已禁用' if not self.enabled else '当前有交易正在进行'}")
             return
-        
+            
+        # 尝试获取交易处理锁，避免并发处理多个交易
+        if not self.trade_lock.acquire(blocking=False):
+            self.logger.info("另一个交易流程正在处理中，忽略此消息")
+            return
+            
+        try:
+            # 更新交易模板
+            self._load_trade_templates()
+                
+            # 尝试使用所有交易模式的模板解析交易消息
+            parsed_data = None
+            
+            # 先尝试使用传入的模板解析
+            parsed_data = self._parse_trade_message(message, template)
+            
+            # 如果失败，尝试使用其他交易模板
+            if not parsed_data:
+                for trade_template in self.trade_templates:
+                    if trade_template != template:  # 避免重复尝试相同模板
+                        parsed_data = self._parse_trade_message(message, trade_template)
+                        if parsed_data:
+                            break
+            
+            if not parsed_data:
+                self.logger.warning(f"无法解析交易消息: {message}")
+                return
+            
+            self._process_trade(parsed_data, message)
+                
+        except Exception as e:
+            self.update_status(f"交易过程出错: {str(e)}")
+            self.logger.error(f"Trade error: {str(e)}", exc_info=True)
+            self._handle_trade_fail(str(e))
+        finally:
+            # 确保在函数结束时释放锁
+            self.trade_lock.release()
+            
+    def _process_trade(self, parsed_data, message):
+        """处理交易流程的核心逻辑，从解析数据开始"""
         try:
             self.trade_start_time = time.time()
-
-            # 解析交易消息
-            parsed_data = self._parse_trade_message(message, template)
-            if not parsed_data:
-                self.update_status("交易消息解析失败")
-                return
 
             self.current_user = parsed_data.get("user")
             self.current_p1_num = parsed_data.get("p1_num")
@@ -155,6 +202,7 @@ class AutoTrade:
                 return
 
             self.trade_state = TradeState.JOINED
+            self.update_status(f"用户 {self.current_user} 已加入区域")
             
             # 打开仓库
             self.update_status("正在打开仓库")
@@ -165,16 +213,20 @@ class AutoTrade:
             self.trade_state = TradeState.STASH_OPENED
 
             # 取出物品
-            if self.current_p1_num:
-                self.update_status(f"正在取出物品 {self.current_p1_num}")
-                if not self.take_out_item.run(p1_num=self.current_p1_num, p2_num=self.current_p2_num):
+            if self.current_p1_num and self.current_p2_num:
+                self.update_status(f"正在取出物品位置: {self.current_p1_num}, {self.current_p2_num}")
+                if not self.take_out_item.run(p1_num=int(self.current_p1_num), p2_num=int(self.current_p2_num)):
                     self._handle_trade_fail("取出物品失败")
                     return
-            self.trade_state = TradeState.ITEMS_TAKEN
+                self.trade_state = TradeState.ITEMS_TAKEN
+            else:
+                self.logger.warning("未提供物品位置信息，跳过取出物品步骤")
 
             # 发起交易
             time.sleep(self.config.trade_interval_ms / 1000)
-            self.press_esc()
+            self.press_esc()  # 先按ESC关闭可能打开的仓库
+            time.sleep(0.2)
+            
             self.game_command.run(command_text=f"/tradewith {self.current_user}")
             self.update_status(f"已向 {self.current_user} 发起交易请求")
             self.trade_state = TradeState.TRADE_REQUESTED
@@ -201,7 +253,11 @@ class AutoTrade:
         """处理交易失败"""
         self.trade_state = TradeState.TRADE_FAILED
         if self.current_user:
-            self.game_command.run(command_text=f"/kick {self.current_user}")
+            try:
+                self.game_command.run(command_text=f"/kick {self.current_user}")
+            except Exception as e:
+                self.logger.error(f"踢出用户失败: {str(e)}")
+                
         self.update_status(f"交易失败: {reason}")
         self.add_history(
             f"交易失败 - 用户: {self.current_user}, "
@@ -261,17 +317,23 @@ class AutoTrade:
     def _parse_trade_message(self, message: str, template: str) -> Optional[dict]:
         """解析交易消息，提取关键信息"""
         try:
-            # 将模板转换为正则表达式
+            # 将模板中的*替换为通配符
+            template = template.replace('*', '.*?')
+            # 处理正则表达式特殊字符转义
+            template = template.replace('(', '\(')
+            template = template.replace(')', '\)')
+            
+            # 替换占位符为捕获组
+            placeholders = [
+                '@user', '@item', '@price', '@currency', '@mode',
+                '@tab', '@p1', '@p1_num', '@p2', '@p2_num'
+            ]
+            
+            # 创建模式字符串
             pattern = template
-            # 替换占位符为正则捕获组
-            pattern = pattern.replace("{@user}", "(?P<user>[^\s]+)")
-            pattern = pattern.replace("{@p1_num}", "(?P<p1_num>\d+)")
-            pattern = pattern.replace("{@p2_num}", "(?P<p2_num>\d+)")
-            # 将其他特殊字符转义
-            pattern = re.escape(pattern).replace("\{@user\}", "(?P<user>[^\s]+)")
-            pattern = pattern.replace("\{@p1_num\}", "(?P<p1_num>\d+)")
-            pattern = pattern.replace("\{@p2_num\}", "(?P<p2_num>\d+)")
-
+            for ph in placeholders:
+                pattern = pattern.replace('{' + ph + '}', f'(?P<{ph[1:]}>[^{{}}]+)')
+            
             # 尝试匹配消息
             match = re.match(pattern, message)
             if match:
@@ -285,7 +347,7 @@ class AutoTrade:
     def _wait_for_join(self, pattern: str, timeout_ms: int) -> bool:
         """等待用户加入，检查日志中是否出现加入信息"""
         start_time = time.time()
-        pattern = pattern.replace("*", ".*")  # 将*转换为正则表达式的.*
+        pattern = pattern.replace("*", ".*?")  # 将*转换为正则表达式的.*
 
         while time.time() - start_time < timeout_ms / 1000:
             # 检查最近的日志
@@ -308,12 +370,24 @@ class AutoTrade:
     def handle_game_log(self, log: str):
         """处理游戏日志"""
         self.add_log(log)
+        # 无论交易状态如何，始终处理所有日志
 
     def enable(self):
         """启用自动交易"""
+        # 更新交易模板
+        self._load_trade_templates()
+        
+        if not self.trade_templates:
+            self.logger.warning("未找到交易模板，自动交易功能可能无法正常工作")
+        else:
+            self.logger.info(f"已加载 {len(self.trade_templates)} 个交易模板")
+        
         self.enabled = True
         self.trade_state = TradeState.IDLE
         self.update_status("自动交易已启用")
+        
+        # 更新配置文件
+        self._update_config_state(True)
 
     def disable(self):
         """禁用自动交易"""
@@ -323,3 +397,84 @@ class AutoTrade:
         else:
             self.trade_state = TradeState.IDLE
             self.update_status("自动交易已禁用")
+            
+        # 更新配置文件
+        self._update_config_state(False)
+            
+    def _update_config_state(self, enabled):
+        """更新配置文件中的自动交易状态"""
+        config_path = 'config.json'
+        if not os.path.exists(config_path):
+            self.logger.warning("配置文件不存在，无法更新自动交易状态")
+            return
+            
+        try:
+            # 读取当前配置
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            # 更新自动交易状态
+            if 'auto_trade' not in config:
+                config['auto_trade'] = {}
+            
+            config['auto_trade']['enabled'] = enabled
+            
+            # 写入配置
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+                
+            self.logger.info(f"已更新配置文件中的自动交易状态: {'启用' if enabled else '禁用'}")
+            
+        except Exception as e:
+            self.logger.error(f"更新配置文件失败: {str(e)}")
+
+    def _load_config_state(self):
+        """从配置文件加载自动交易状态和配置"""
+        config_path = 'config.json'
+        if not os.path.exists(config_path):
+            self.logger.warning("配置文件不存在，无法加载自动交易状态")
+            return
+            
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                
+                # 读取自动交易配置
+                auto_trade_config = config.get('auto_trade', {})
+                
+                # 更新启用状态
+                self.enabled = auto_trade_config.get('enabled', False)
+                
+                # 更新配置参数
+                self.config = TradeConfig(
+                    party_timeout_ms=auto_trade_config.get('party_timeout_ms', 30000),
+                    trade_timeout_ms=auto_trade_config.get('trade_timeout_ms', 10000),
+                    stash_interval_ms=auto_trade_config.get('stash_interval_ms', 1000),
+                    trade_interval_ms=auto_trade_config.get('trade_interval_ms', 1000)
+                )
+                
+                # 加载交易模板
+                self._load_trade_templates()
+                
+                self.logger.info(f"已从配置加载自动交易状态: {'启用' if self.enabled else '禁用'}")
+                
+        except Exception as e:
+            self.logger.error(f"加载配置文件失败: {str(e)}")
+
+    def _load_trade_templates(self):
+        """从配置文件加载交易模式的关键词模板"""
+        try:
+            with open('config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                self.trade_templates = []
+                
+                # 从关键词中获取交易模式的模板
+                for kw in config.get('keywords', []):
+                    if kw.get('mode') == '交易模式':
+                        self.trade_templates.append(kw.get('pattern'))
+                
+                if not self.trade_templates:
+                    self.logger.warning("未找到交易模式关键词模板，自动交易功能可能无法正常工作")
+        except Exception as e:
+            self.logger.error(f"读取配置文件失败: {str(e)}")
+            self.trade_templates = []

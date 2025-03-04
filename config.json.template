@@ -20,9 +20,6 @@
     "divine",
     "chance"
   ],
-  "templates": [
-    "來自 {@user}: 你好，我想購買 {@item} 標價 {@price} {@currency} 在 {@mode} (倉庫頁 {@tab}; 位置: {@p1} {@p1_num}, {@p2} {@p2_num})"
-  ],
   "keyword_modes": [
     "消息模式",
     "交易模式"
@@ -54,10 +51,7 @@
     "party_timeout_ms": 30000,
     "stash_interval_ms": 1000,
     "trade_interval_ms": 1000,
-    "trade_timeout_ms": 10000,
-    "accepted_templates": [
-      "*來自 {@user}: 你好，我想購買 {@item} 標價 {@price} {@currency} 在 {@mode} (倉庫頁 \"{@tab}\"; 位置: {@p1} {@p1_num}, {@p2} {@p2_num})"
-    ]
+    "trade_timeout_ms": 10000
   },
   "game_window": "Path of Exile 2"
 }

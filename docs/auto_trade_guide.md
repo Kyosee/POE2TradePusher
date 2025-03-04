@@ -17,10 +17,7 @@ pip install -r requirements.txt
     "party_timeout_ms": 30000,
     "stash_interval_ms": 1000,
     "trade_interval_ms": 1000,
-    "trade_timeout_ms": 10000,
-    "accepted_templates": [
-      "*來自 {@user}: 你好，我想購買 {@item} 標價 {@price} {@currency} 在 {@mode} (倉庫頁 \"{@tab}\"; 位置: {@p1} {@p1_num}, {@p2} {@p2_num})"
-    ]
+    "trade_timeout_ms": 10000
   }
 }
 ```

@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PySide6.QtCore import Qt
 from core.auto_trade import TradeConfig
 from gui.widgets.switch import Switch
+import json
 
 class AutoTradePage(QWidget):
     def __init__(self, parent=None, save_config=None):
@@ -58,7 +59,7 @@ class AutoTradePage(QWidget):
         party_timeout_layout = QHBoxLayout()
         party_timeout_layout.addWidget(QLabel("组队超时时间(毫秒):"))
         self.party_timeout_input = QSpinBox()
-        self.party_timeout_input.setRange(1000, 300000)  # 1秒到5分钟
+        self.party_timeout_input.setRange(1, 2147483647)  # 设置为最大整数范围
         self.party_timeout_input.setValue(30000)
         self.party_timeout_input.valueChanged.connect(self._on_config_changed)
         party_timeout_layout.addWidget(self.party_timeout_input)
@@ -69,7 +70,7 @@ class AutoTradePage(QWidget):
         trade_timeout_layout = QHBoxLayout()
         trade_timeout_layout.addWidget(QLabel("交易请求超时(毫秒):"))
         self.trade_timeout_input = QSpinBox()
-        self.trade_timeout_input.setRange(1000, 60000)  # 1秒到1分钟
+        self.trade_timeout_input.setRange(1, 2147483647)  # 设置为最大整数范围
         self.trade_timeout_input.setValue(10000)
         self.trade_timeout_input.valueChanged.connect(self._on_config_changed)
         trade_timeout_layout.addWidget(self.trade_timeout_input)
@@ -85,7 +86,7 @@ class AutoTradePage(QWidget):
         stash_interval_layout = QHBoxLayout()
         stash_interval_layout.addWidget(QLabel("开仓取物间隔(毫秒):"))
         self.stash_interval_input = QSpinBox()
-        self.stash_interval_input.setRange(100, 10000)  # 0.1秒到10秒
+        self.stash_interval_input.setRange(1, 2147483647)  # 设置为最大整数范围
         self.stash_interval_input.setValue(1000)
         self.stash_interval_input.valueChanged.connect(self._on_config_changed)
         stash_interval_layout.addWidget(self.stash_interval_input)
@@ -96,7 +97,7 @@ class AutoTradePage(QWidget):
         trade_interval_layout = QHBoxLayout()
         trade_interval_layout.addWidget(QLabel("交易发起间隔(毫秒):"))
         self.trade_interval_input = QSpinBox()
-        self.trade_interval_input.setRange(100, 10000)  # 0.1秒到10秒
+        self.trade_interval_input.setRange(1, 2147483647)  # 设置为最大整数范围
         self.trade_interval_input.setValue(1000)
         self.trade_interval_input.valueChanged.connect(self._on_config_changed)
         trade_interval_layout.addWidget(self.trade_interval_input)
@@ -190,10 +191,7 @@ class AutoTradePage(QWidget):
                 'party_timeout_ms': self.party_timeout_input.value(),
                 'trade_timeout_ms': self.trade_timeout_input.value(),
                 'stash_interval_ms': self.stash_interval_input.value(),
-                'trade_interval_ms': self.trade_interval_input.value(),
-                'accepted_templates': [
-                    "*來自 {@user}: 你好，我想購買 {@item} 標價 {@price} {@currency} 在 {@mode} (倉庫頁 \"{@tab}\"; 位置: {@p1} {@p1_num}, {@p2} {@p2_num})"
-                ]
+                'trade_interval_ms': self.trade_interval_input.value()
             }
         }
 
