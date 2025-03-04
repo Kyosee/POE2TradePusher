@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                                    QLineEdit, QFrame, QSpinBox)
+                                    QLineEdit, QFrame, QSpinBox, QPushButton)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QPixmap
 import cv2
@@ -50,11 +50,36 @@ class PositionTestPage(RecognitionBasePage):
         
     def _create_search_frame(self):
         """创建搜索栏"""
-        # 调用父类方法创建基本框架
-        super()._create_search_frame()
+        # 创建搜索框架
+        search_frame = QFrame()
+        search_frame.setProperty('class', 'card-frame')
+        search_layout = QHBoxLayout(search_frame)
+        search_layout.setContentsMargins(10, 10, 10, 10)
         
-        # 修改识别按钮文本
-        self.recognize_btn.setText("识别并取出")
+        # 创建按钮容器
+        btn_container = QWidget()
+        btn_layout = QHBoxLayout(btn_container)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(6)
+
+        # 添加识别按钮
+        self.recognize_btn = QPushButton("识别并取出")
+        self.recognize_btn.clicked.connect(self._do_recognition)
+        self.recognize_btn.setProperty('class', 'normal-button')
+        btn_layout.addWidget(self.recognize_btn)
+        
+        # 添加无预览取出按钮
+        self.no_preview_btn = QPushButton("无预览取出")
+        self.no_preview_btn.setProperty('class', 'normal-button')
+        self.no_preview_btn.clicked.connect(self._take_out_no_preview)
+        btn_layout.addWidget(self.no_preview_btn)
+        
+        # 添加按钮容器到搜索布局
+        search_layout.addWidget(btn_container)
+        search_layout.addStretch()
+        
+        # 添加搜索框架到主布局
+        self.main_layout.addWidget(search_frame)
         
         # 创建输入区域框架
         input_frame = QFrame()
@@ -124,3 +149,31 @@ class PositionTestPage(RecognitionBasePage):
         except Exception as e:
             self._add_log(f"识别过程出错: {str(e)}", "ERROR")
             self.update_status("❌ 识别失败")
+
+    def _take_out_no_preview(self):
+        """执行无预览取出装备"""
+        try:
+            # 获取输入的坐标值
+            p1_num = self.position1_spin.value()
+            p2_num = self.position2_spin.value()
+            
+            # 执行取出装备模块（禁用预览）
+            result = self.take_out_module.process(
+                p1_num=p1_num,
+                p2_num=p2_num,
+                preview_callback=None
+            )
+            
+            if result is not False:
+                self._add_log(f"✅ 已成功取出装备：横向{p1_num}格，纵向{p2_num}格")
+                self.update_status("✅ 操作成功")
+            else:
+                self._add_log("❌ 取出装备失败", "ERROR")
+                self.update_status("❌ 操作失败")
+                
+        except ValueError as e:
+            self._add_log("❌ 请输入有效的位置数值", "ERROR")
+            self.update_status("❌ 输入错误")
+        except Exception as e:
+            self._add_log(f"取出过程出错: {str(e)}", "ERROR")
+            self.update_status("❌ 操作失败")
