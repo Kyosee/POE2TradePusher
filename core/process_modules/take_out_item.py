@@ -70,7 +70,9 @@ class TakeOutItemModule(ProcessModule):
             return False
             
         preview_callback = kwargs.get('preview_callback') if preview_enabled else None
-        return self.process(p1_num, p2_num, preview_callback)
+        result = self.process(p1_num, p2_num, preview_callback)
+        # 如果返回值是图像数组，说明处理成功；如果是False，说明处理失败
+        return isinstance(result, np.ndarray)
 
     def _get_window_name(self):
         """获取游戏窗口名称"""

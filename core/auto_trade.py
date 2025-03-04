@@ -430,6 +430,12 @@ class AutoTrade:
             
         # 更新配置文件
         self._update_config_state(False)
+
+    def stop_current_trade(self):
+        """停止当前交易流程，但不改变自动交易功能的开启状态"""
+        if self.current_user:
+            self._handle_trade_fail("监控已停止")
+        self.trade_state = TradeState.IDLE
             
     def _update_config_state(self, enabled):
         """更新配置文件中的自动交易状态"""

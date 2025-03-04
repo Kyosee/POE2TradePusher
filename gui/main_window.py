@@ -578,9 +578,9 @@ class MainWindow(QMainWindow):
         if self.monitor:
             self.monitor.stop()
             
-        # 确保停止自动交易处理
+        # 停止当前交易流程（如果有）
         if hasattr(self, 'auto_trade'):
-            self.auto_trade.disable()
+            self.auto_trade.stop_current_trade()
             
         if hasattr(self, 'currency_fetcher'):
             self.currency_fetcher.stop()
