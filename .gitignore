@@ -39,4 +39,5 @@ config.json
 *.log
 release/
 assets/icon.ico
+assets/tab/
 _temp_preview.py
