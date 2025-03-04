@@ -268,23 +268,22 @@ class TakeOutItemModule(ProcessModule):
             cell_width = dx / grid_cols
             cell_height = dy / grid_rows
             
-            # 计算目标点击位置
-            def get_cell_center(num):
-                row = (num - 1) // grid_cols
-                col = (num - 1) % grid_cols
+            # 计算目标点击位置 num1列 num2行
+            def get_cell_center(num1, num2):
+                print(grid_rows)
+                col = (num1 - 1) % grid_cols
+                row = (num2 - 1) % grid_rows
                 x = grid_start_x + col * cell_width + cell_width / 2
                 y = grid_start_y + row * cell_height + cell_height / 2
                 return x, y
             
-            x1, y1 = get_cell_center(p1_num)
-            x2, y2 = get_cell_center(p2_num)
+            x1, y1 = get_cell_center(p1_num, p2_num)
+            print(x1, y1)
             
             # 转换为屏幕坐标并执行点击
             rect = win32gui.GetWindowRect(hwnd)
             screen_x1 = int(x1) + rect[0]
             screen_y1 = int(y1) + rect[1]
-            screen_x2 = int(x2) + rect[0]
-            screen_y2 = int(y2) + rect[1]
             
             try:
                 # 确保窗口处于活动状态
@@ -314,6 +313,7 @@ class TakeOutItemModule(ProcessModule):
                 
                 # 点击指定位置
                 click_at(screen_x1, screen_y1)
+                print(screen_x1, screen_y1)
                 win32api.Sleep(300)
                 
                 # 释放Ctrl键

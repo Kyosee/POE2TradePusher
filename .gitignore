@@ -39,3 +39,4 @@ config.json
 *.log
 release/
 assets/icon.ico
+_temp_preview.py
