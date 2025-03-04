@@ -8,6 +8,7 @@ import time
 
 from core.process_module import ProcessModule
 from gui.pages.recognition_base_page import RecognitionBasePage
+from gui.utils import switch_to_window
 
 
 class OpenStashModule(ProcessModule):
@@ -97,9 +98,8 @@ class OpenStashModule(ProcessModule):
                 relative_x = top_left[0] + best_w//2
                 relative_y = top_left[1] + best_h//2
 
-                # 将窗口置于前台
-                win32gui.SetForegroundWindow(hwnd)
-                win32gui.SetActiveWindow(hwnd)
+                # 将窗口置于前台 - 使用通用切换窗口函数
+                switch_to_window(window_name)
                 # 等待窗口激活
                 time.sleep(0.2)
 

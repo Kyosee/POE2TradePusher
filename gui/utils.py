@@ -1,7 +1,9 @@
 from PySide6.QtWidgets import QMessageBox, QApplication
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 import win32gui
 import win32con
+import time
+import threading
 from .widgets.toast import show_toast, Toast
 
 def show_message(title, message, type_="info", parent=None):
@@ -50,13 +52,14 @@ def find_window(window_name):
     
     return result[0]
 
-def switch_to_window(window_name, current_widget=None):
+def switch_to_window(window_name, current_widget=None, timeout=3):
     """
     切换到指定名称的窗口
     
     Args:
         window_name: 窗口名称
         current_widget: 当前小部件，用于显示Toast
+        timeout: 切换窗口的超时时间（秒）
         
     Returns:
         bool: 切换是否成功
@@ -65,34 +68,70 @@ def switch_to_window(window_name, current_widget=None):
         if current_widget:
             show_toast(current_widget, "错误", "窗口名称不能为空", Toast.ERROR)
         return False
-        
-    try:
-        import win32gui
-        import win32con
+    
+    result = [False]
+    exception = [None]
+    
+    def worker():
+        try:
+            import win32gui
+            import win32con
 
-        # 查找窗口
-        hwnd = win32gui.FindWindow(None, window_name)
-        if hwnd == 0:
-            if current_widget:
-                show_toast(current_widget, "错误", f"找不到窗口: {window_name}", Toast.ERROR)
-            return False
+            # 查找窗口
+            hwnd = win32gui.FindWindow(None, window_name)
+            if hwnd == 0:
+                if current_widget:
+                    QTimer.singleShot(0, lambda: show_toast(current_widget, "错误", f"找不到窗口: {window_name}", Toast.ERROR))
+                return
 
-        # 如果窗口最小化，则恢复它
-        if win32gui.IsIconic(hwnd):
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            # 如果窗口最小化，则恢复它
+            if win32gui.IsIconic(hwnd):
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                time.sleep(0.1)
+                
+            # 将窗口置于前台
+            # 使用更可靠的方法设置前台窗口
+            shell = win32gui.GetShellWindow()
+            foreground_hwnd = win32gui.GetForegroundWindow()
             
-        # 将窗口置于前台
-        win32gui.SetForegroundWindow(hwnd)
-        
-        # 显示成功Toast
-        if current_widget:
-            show_toast(current_widget, "成功", f"已切换到窗口: {window_name}", Toast.SUCCESS)
+            # 尝试多种方式激活窗口
+            win32gui.SetWindowPos(hwnd, win32con.HWND_TOP, 0, 0, 0, 0, 
+                                 win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
+            win32gui.SetForegroundWindow(hwnd)
+            win32gui.BringWindowToTop(hwnd)
             
-        return True
-    except Exception as e:
+            # 检查是否成功激活
+            time.sleep(0.2)
+            foreground_hwnd_after = win32gui.GetForegroundWindow()
+            
+            result[0] = (foreground_hwnd_after == hwnd)
+            
+            # 显示成功Toast
+            if result[0] and current_widget:
+                QTimer.singleShot(0, lambda: show_toast(current_widget, "成功", f"已切换到窗口: {window_name}", Toast.SUCCESS))
+                
+        except Exception as e:
+            exception[0] = str(e)
+    
+    # 在单独的线程中执行窗口切换操作
+    thread = threading.Thread(target=worker)
+    thread.daemon = True
+    thread.start()
+    thread.join(timeout)  # 等待线程执行完成或超时
+    
+    if thread.is_alive():
+        # 如果线程还在运行，说明操作超时
         if current_widget:
-            show_toast(current_widget, "错误", f"切换窗口失败: {str(e)}", Toast.ERROR)
+            QTimer.singleShot(0, lambda: show_toast(current_widget, "错误", f"切换窗口超时", Toast.ERROR))
         return False
+    
+    if exception[0]:
+        # 如果发生异常
+        if current_widget:
+            QTimer.singleShot(0, lambda: show_toast(current_widget, "错误", f"切换窗口失败: {exception[0]}", Toast.ERROR))
+        return False
+        
+    return result[0]
 
 class ConfigMixin:
     """配置操作混入类"""

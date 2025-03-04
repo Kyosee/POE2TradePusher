@@ -4,6 +4,7 @@ import win32api
 import win32clipboard
 import json
 from ..process_module import ProcessModule
+from gui.utils import switch_to_window
 
 class GameCommandModule(ProcessModule):
     """游戏命令模块 - 执行游戏命令"""
@@ -34,10 +35,10 @@ class GameCommandModule(ProcessModule):
                 self.logger.error(f"未找到游戏窗口: {window_name}")
                 return False
                 
-            # 确保窗口处于活动状态
-            if win32gui.GetForegroundWindow() != hwnd:
-                win32gui.SetForegroundWindow(hwnd)
-                win32api.Sleep(100)
+            # 确保窗口处于活动状态 - 使用通用切换窗口函数
+            switch_result = switch_to_window(window_name)
+            if not switch_result:
+                self.logger.warning("切换到游戏窗口失败，尝试继续执行")
             
             # 模拟回车键
             self._press_enter()

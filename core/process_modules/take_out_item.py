@@ -10,6 +10,7 @@ from ctypes import (Structure, c_ulong, c_ushort, c_short, c_long,
                    POINTER, sizeof, CFUNCTYPE, c_void_p, windll, byref)
 import json
 from ..process_module import ProcessModule
+from gui.utils import switch_to_window
 
 ULONG_PTR = POINTER(c_ulong)
 
@@ -286,10 +287,10 @@ class TakeOutItemModule(ProcessModule):
             screen_y1 = int(y1) + rect[1]
             
             try:
-                # 确保窗口处于活动状态
-                if win32gui.GetForegroundWindow() != hwnd:
-                    win32gui.SetForegroundWindow(hwnd)
-                    win32api.Sleep(100)
+                # 确保窗口处于活动状态 - 使用通用切换窗口函数
+                switch_result = switch_to_window(window_name)
+                if not switch_result:
+                    self.logger.warning(f"切换到游戏窗口失败，尝试继续执行")
                 
                 # 获取客户区位置
                 client_rect = win32gui.GetClientRect(hwnd)

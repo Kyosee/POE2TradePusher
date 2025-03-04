@@ -1,6 +1,7 @@
 import sys
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QHBoxLayout, QLineEdit, QLabel
 from gui.widgets.toast import show_toast, Toast
+from gui.utils import switch_to_window
 
 class TestWindow(QMainWindow):
     def __init__(self):
@@ -74,27 +75,8 @@ class TestWindow(QMainWindow):
         
     def switch_window(self):
         window_name = self.window_name_entry.text().strip()
-        try:
-            import win32gui
-            import win32con
-            
-            # 查找窗口
-            hwnd = win32gui.FindWindow(None, window_name)
-            if hwnd == 0:
-                show_toast(self, "错误", f"找不到窗口: {window_name}", Toast.ERROR)
-                return
-                
-            # 如果窗口最小化，则恢复它
-            if win32gui.IsIconic(hwnd):
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                
-            # 将窗口置于前台
-            win32gui.SetForegroundWindow(hwnd)
-            
-            # 显示成功提示
-            show_toast(self, "成功", f"已切换到窗口: {window_name}", Toast.SUCCESS)
-        except Exception as e:
-            show_toast(self, "错误", f"切换窗口失败: {str(e)}", Toast.ERROR)
+        # 使用通用的切换窗口函数
+        switch_to_window(window_name, self)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
