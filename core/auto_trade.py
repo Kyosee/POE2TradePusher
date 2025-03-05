@@ -15,6 +15,7 @@ import queue
 from core.process_modules.game_command import GameCommandModule
 from core.process_modules.open_stash import OpenStashModule
 from core.process_modules.take_out_item import TakeOutItemModule
+from core.process_modules.tab_select import TabSelectModule
 
 class TradeState(Enum):
     """交易状态枚举"""
@@ -60,6 +61,7 @@ class AutoTrade:
         self.game_command = GameCommandModule()
         self.open_stash = OpenStashModule()
         self.take_out_item = TakeOutItemModule()
+        self.tab_select = TabSelectModule()
 
         # 日志监控器引用
         self.log_monitor = None
@@ -247,6 +249,14 @@ class AutoTrade:
                 return
             time.sleep(self.config.stash_interval_ms / 1000)
             self.trade_state = TradeState.STASH_OPENED
+
+            # 选择仓库标签页
+            if parsed_data.get("tab"):
+                self.update_status(f"正在选择仓库标签页: {parsed_data['tab']}")
+                if not self.tab_select.run(tab_text=parsed_data["tab"]):
+                    self._handle_trade_fail("选择仓库标签页失败")
+                    return
+                time.sleep(0.5)  # 给一点时间让标签页切换完成
 
             # 取出物品
             if self.current_p1_num and self.current_p2_num:
