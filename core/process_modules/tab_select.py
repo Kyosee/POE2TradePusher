@@ -63,9 +63,18 @@ class TabSelectModule(ProcessModule):
             original_image = self.recognition_base._grab_screen(rect)
             original_cv = self.recognition_base._convert_to_cv(original_image)
             
-            # 使用PaddleOCR识别文本区域
-            # 初始化PaddleOCR，使用中英文识别模型
-            ocr = PaddleOCR(use_angle_cls=True, lang="ch", show_log=False)
+            # 使用PaddleOCR PP-OCRv4轻量化模型识别文本区域
+            ocr = PaddleOCR(
+                use_angle_cls=True, 
+                lang="ch", 
+                show_log=False, 
+                use_mp=True,        # 使用多进程加速
+                total_process_num=2, # 使用2个进程
+                use_pp_ocr_v4=True,  # 启用PP-OCRv4轻量化模型
+                det_limit_side_len=960, # 检测模型的输入尺寸
+                rec_batch_num=6,    # 识别模型batch大小
+                enable_mkldnn=True  # 启用mkldnn加速
+            )
             
             # 直接使用原始图像进行识别
             result = ocr.ocr(original_cv, cls=True)

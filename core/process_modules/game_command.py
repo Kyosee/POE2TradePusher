@@ -23,22 +23,22 @@ class GameCommandModule(ProcessModule):
             
         try:
             # 从配置文件读取游戏窗口名称
-            try:
-                with open('config.json', 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                    window_name = config.get('game_window', 'Path of Exile 2')
-            except Exception as e:
-                self.logger.error(f"读取配置文件失败: {str(e)}")
-                window_name = 'Path of Exile 2'
-            hwnd = win32gui.FindWindow(None, window_name)
-            if not hwnd:
-                self.logger.error(f"未找到游戏窗口: {window_name}")
-                return False
+            # try:
+            #     with open('config.json', 'r', encoding='utf-8') as f:
+            #         config = json.load(f)
+            #         window_name = config.get('game_window', 'Path of Exile 2')
+            # except Exception as e:
+            #     self.logger.error(f"读取配置文件失败: {str(e)}")
+            #     window_name = 'Path of Exile 2'
+            # hwnd = win32gui.FindWindow(None, window_name)
+            # if not hwnd:
+            #     self.logger.error(f"未找到游戏窗口: {window_name}")
+            #     return False
                 
-            # 确保窗口处于活动状态 - 使用通用切换窗口函数
-            switch_result = switch_to_window(window_name)
-            if not switch_result:
-                self.logger.warning("切换到游戏窗口失败，尝试继续执行")
+            # # 确保窗口处于活动状态 - 使用通用切换窗口函数
+            # switch_result = switch_to_window(window_name)
+            # if not switch_result:
+            #     self.logger.warning("切换到游戏窗口失败，尝试继续执行")
             
             # 模拟回车键
             self._press_enter()
