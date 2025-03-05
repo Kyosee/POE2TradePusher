@@ -61,6 +61,13 @@ class AutoTrade:
         self.open_stash = OpenStashModule()
         self.take_out_item = TakeOutItemModule()
 
+        # 日志监控器引用
+        self.log_monitor = None
+        
+        # 用于等待用户加入的事件和结果
+        self.join_event = threading.Event()
+        self.join_result = False
+
         self.logger = logging.getLogger("AutoTrade")
         
         # 添加Toast提示功能
@@ -209,6 +216,16 @@ class AutoTrade:
 
             self.update_status(f"开始与用户 {self.current_user} 的自动交易")
             self.trade_state = TradeState.INVITING
+            
+            # 先添加临时触发器，注意：这时已经有了current_user
+            if self.log_monitor:
+                trigger_pattern = self.get_temp_trigger_pattern()
+                if trigger_pattern:
+                    self.log_monitor.add_temp_trigger(
+                        trigger_pattern,
+                        self.handle_temp_trigger_match,
+                        self.config.party_timeout_ms
+                    )
             
             # 邀请用户组队
             self.game_command.run(command_text=f"/invite {self.current_user}")
@@ -364,7 +381,72 @@ class AutoTrade:
             return None
 
     def _wait_for_join(self, pattern: str, timeout_ms: int) -> bool:
-        """等待用户加入，检查日志中是否出现加入信息"""
+        """等待用户加入，使用临时日志触发器监测
+        
+        Args:
+            pattern: 用于匹配日志的模式
+            timeout_ms: 超时时间（毫秒）
+            
+        Returns:
+            bool: 用户是否成功加入
+        """
+        # 确保日志监控器已设置
+        if not self.log_monitor:
+            self.logger.error("日志监控器未设置，无法添加临时触发器")
+            # 回退到原有的检查方式
+            return self._legacy_wait_for_join(pattern, timeout_ms)
+        
+        # 将通配符替换为正则表达式的通配符
+        regex_pattern = pattern.replace("*", ".*?")
+        
+        # 重置等待事件
+        self.join_event.clear()
+        self.join_result = False
+        
+        def on_user_join(log_line):
+            """用户加入区域的回调函数"""
+            self.logger.info(f"检测到用户进入: {log_line}")
+            self.join_result = True
+            self.join_event.set()  # 通知等待线程
+        
+        # 添加临时触发器
+        trigger_id = self.log_monitor.add_temp_trigger(
+            regex_pattern,
+            on_user_join,
+            timeout_ms
+        )
+            
+        if not trigger_id:
+            self.logger.error("添加临时触发器失败，回退到原有检查方式")
+            return self._legacy_wait_for_join(pattern, timeout_ms)
+        
+        # 等待触发器被触发或超时
+        self.join_event.wait(timeout_ms / 1000 + 0.5)  # 额外添加0.5秒确保触发器超时处理完成
+        
+        # 无论结果如何，尝试移除触发器（可能已在触发或超时时被移除）
+        try:
+            self.log_monitor.remove_temp_trigger(trigger_id)
+        except:
+            pass
+        
+        if self.join_result:
+            self.logger.info(f"用户 {self.current_user} 已成功进入区域")
+        else:
+            self.logger.warning(f"等待用户 {self.current_user} 进入超时")
+        
+        return self.join_result
+    
+    def _legacy_wait_for_join(self, pattern: str, timeout_ms: int) -> bool:
+        """原有的等待用户加入方法（备用）
+        
+        Args:
+            pattern: 匹配模式
+            timeout_ms: 超时时间（毫秒）
+            
+        Returns:
+            bool: 是否成功
+        """
+        self.logger.warning("使用备用方法等待用户进入")
         start_time = time.time()
         pattern = pattern.replace("*", ".*?")  # 将*转换为正则表达式的.*
 
@@ -514,6 +596,36 @@ class AutoTrade:
         except Exception as e:
             self.logger.error(f"读取配置文件失败: {str(e)}")
             self.trade_templates = []
+            
+    def set_log_monitor(self, log_monitor):
+        """设置日志监控器引用
+        
+        Args:
+            log_monitor: LogMonitor实例
+        """
+        self.log_monitor = log_monitor
+        self.logger.info("已设置日志监控器引用")
+        return self
+
+    def get_temp_trigger_pattern(self) -> str:
+        """获取临时触发器的匹配模式
+        
+        Returns:
+            str: 匹配模式（正则表达式）
+        """
+        if not self.current_user:
+            return ""
+        return f".*{self.current_user} 進入了此區域。"
+    
+    def handle_temp_trigger_match(self, log_line: str):
+        """处理临时触发器匹配的回调函数
+        
+        Args:
+            log_line: 匹配的日志行
+        """
+        self.logger.info(f"检测到用户进入: {log_line}")
+        self.join_result = True
+        self.join_event.set()  # 通知等待线程
 
     def _start_trade_thread(self):
         """启动交易处理线程"""

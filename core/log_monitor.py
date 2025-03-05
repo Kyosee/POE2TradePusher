@@ -24,6 +24,11 @@ class LogMonitor:
         self.last_push_time = 0
         self.buffer_size = 8192
         
+        # 临时触发器相关
+        self.temp_triggers = {}  # 临时触发器字典 {trigger_id: {pattern, callback, timeout_ms, created_at}}
+        self.trigger_id_counter = 0  # 触发器ID计数器
+        self.triggers_lock = threading.Lock()  # 触发器操作锁
+        
         # 交易统计数据
         self.trade_stats = {
             'total_trades': 0,  # 总交易消息数
@@ -89,6 +94,9 @@ class LogMonitor:
     def add_handler(self, handler):
         """添加其他处理器（如自动交易处理器）"""
         if handler:
+            # 如果是AutoTrade处理器，设置log_monitor引用
+            if hasattr(handler, 'set_log_monitor'):
+                handler.set_log_monitor(self)
             self.handlers.append(handler)
             self.log_callback("已添加处理器", "SYSTEM")
             
@@ -225,6 +233,9 @@ class LogMonitor:
         for line in lines:
             if self.stop_event.is_set():
                 break
+            
+            # 处理临时触发器
+            self._process_temp_triggers(line)
             
             # 更新所有处理器的日志 - 使用线程池异步处理以避免阻塞
             for handler in self.handlers:
@@ -364,3 +375,88 @@ class LogMonitor:
         if match:
             return match.groupdict()
         return None
+        
+    def add_temp_trigger(self, pattern, callback, timeout_ms=30000):
+        """添加临时触发器
+        
+        Args:
+            pattern: 匹配模式（正则表达式）
+            callback: 回调函数，接收匹配的日志行作为参数
+            timeout_ms: 超时时间（毫秒），默认30秒
+            
+        Returns:
+            str: 触发器ID，用于后续移除
+        """
+        with self.triggers_lock:
+            trigger_id = f"trigger_{self.trigger_id_counter}"
+            self.trigger_id_counter += 1
+            
+            self.temp_triggers[trigger_id] = {
+                'pattern': pattern,
+                'callback': callback,
+                'timeout_ms': timeout_ms,
+                'created_at': time.time() * 1000  # 毫秒时间戳
+            }
+            
+            self.log_callback(f"添加临时触发器: {trigger_id}, 模式: {pattern}, 超时: {timeout_ms}ms", "SYSTEM")
+            return trigger_id
+            
+    def remove_temp_trigger(self, trigger_id):
+        """移除临时触发器
+        
+        Args:
+            trigger_id: 触发器ID
+            
+        Returns:
+            bool: 是否成功移除
+        """
+        with self.triggers_lock:
+            if trigger_id in self.temp_triggers:
+                del self.temp_triggers[trigger_id]
+                self.log_callback(f"已移除临时触发器: {trigger_id}", "SYSTEM")
+                return True
+            return False
+            
+    def _process_temp_triggers(self, log_line):
+        """处理临时触发器
+        
+        Args:
+            log_line: 日志行
+        """
+        current_time = time.time() * 1000  # 毫秒
+        expired_triggers = []
+        triggered_ids = []
+        
+        # 使用锁保护触发器字典的访问
+        with self.triggers_lock:
+            # 检查是否有触发器已过期
+            for trigger_id, trigger_info in self.temp_triggers.items():
+                created_at = trigger_info['created_at']
+                timeout_ms = trigger_info['timeout_ms']
+                
+                # 检查是否超时
+                if current_time - created_at > timeout_ms:
+                    expired_triggers.append(trigger_id)
+                    continue
+                    
+                # 检查是否匹配
+                pattern = trigger_info['pattern']
+                if re.search(pattern, log_line):
+                    # 调用回调函数
+                    try:
+                        trigger_info['callback'](log_line)
+                        self.log_callback(f"触发器 {trigger_id} 匹配成功: {log_line[:50]}...", "SYSTEM")
+                        triggered_ids.append(trigger_id)
+                    except Exception as e:
+                        self.log_callback(f"触发器回调执行异常: {str(e)}", "ERROR")
+            
+            # 移除已触发的触发器
+            for trigger_id in triggered_ids:
+                if trigger_id in self.temp_triggers:
+                    del self.temp_triggers[trigger_id]
+                    
+            # 移除过期的触发器
+            for trigger_id in expired_triggers:
+                if trigger_id in self.temp_triggers:
+                    self.log_callback(f"触发器 {trigger_id} 已超时", "SYSTEM")
+                    del self.temp_triggers[trigger_id]
