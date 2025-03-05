@@ -38,7 +38,8 @@ class MenuPanel(QFrame):
             ('识别测试', None, [
                 ('仓库测试', self.show_stash_recognition),
                 ('定位测试', self.show_grid_recognition),
-                ('命令测试', self.show_command_test)
+                ('命令测试', self.show_command_test),
+                ('Tab测试', self.show_tab_test)
             ])
         ]
         
@@ -198,3 +199,8 @@ class MenuPanel(QFrame):
         """显示命令测试页面"""
         self.main_window._show_command_test()
         self._update_menu_state(6, '命令测试')
+        
+    def show_tab_test(self):
+        """显示Tab测试页面"""
+        self.main_window._show_tab_test()
+        self._update_menu_state(6, 'Tab测试')

@@ -4,6 +4,7 @@ from .pages.stash_test_page import StashTestPage
 from .pages.position_test_page import PositionTestPage
 from .pages.command_test_page import CommandTestPage
 from .pages.auto_trade_page import AutoTradePage
+from .pages.tab_test_page import TabTestPage
 
 class ContentPanel(QFrame):
     """右侧内容面板，管理所有页面"""
@@ -80,6 +81,12 @@ class ContentPanel(QFrame):
         self.auto_trade_page.setProperty('class', 'page-container')
         self.content_layout.addWidget(self.auto_trade_page)
         
+        # 创建Tab测试页面
+        self.tab_test_page = TabTestPage(self, self.log_message, 
+                                        self.update_status_bar)
+        self.tab_test_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.tab_test_page)
+        
         # 创建页面映射字典，方便按名称显示
         self.pages = {
             'basic_config': self.basic_config_page,
@@ -90,7 +97,8 @@ class ContentPanel(QFrame):
             'stash_recognition': self.stash_recognition_page,
             'grid_recognition': self.grid_recognition_page,
             'command_test': self.command_test_page,
-            'auto_trade': self.auto_trade_page
+            'auto_trade': self.auto_trade_page,
+            'tab_test': self.tab_test_page
         }
     
     def show_page(self, page_name):

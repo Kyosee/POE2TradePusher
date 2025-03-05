@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import os
 from pathlib import Path
-from PIL import ImageGrab
+from PIL import ImageGrab, Image
 from ..utils import LoggingMixin, find_window
 
 class RecognitionBasePage(QWidget, LoggingMixin):

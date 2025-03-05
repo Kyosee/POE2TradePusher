@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QMainWindow, QWidget, QMessageBox, QHBoxLayout
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QThread
 from PySide6.QtGui import QIcon
+import threading
 
 from core.config import Config
 from utils.currency_fetcher import CurrencyFetcher
@@ -11,6 +12,28 @@ from .content_panel import ContentPanel
 from .status_bar import StatusBarWidget
 from .monitor_manager import MonitorManager
 from .widgets.toast import show_toast, Toast
+
+class InitThread(QThread):
+    """非必要组件初始化线程"""
+    
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+        
+    def run(self):
+        """运行初始化任务"""
+        # 预先初始化对话框，避免首次弹窗卡顿
+        self.main_window._pre_init_dialogs()
+        
+        # 初始化通货价格获取器
+        self.main_window._init_currency_fetcher()
+        
+        # 初始化监控管理器
+        self.main_window._init_monitor_manager()
+        
+        # 添加初始提示信息
+        self.main_window.log_message("应用程序已启动，等待配置...", "INFO")
+        self.main_window.log_message("请配置日志路径和至少一种推送方式", "INFO")
 
 class MainWindow(QMainWindow):
     """主窗口类"""
@@ -26,7 +49,7 @@ class MainWindow(QMainWindow):
         # 设置应用图标
         self.setWindowIcon(QIcon("assets/icon.png"))
         
-        # 初始化组件
+        # 初始化必要组件
         self.styles = Styles()
         self.config = Config()
         self.tray_icon = TrayIcon(icon_path="assets/icon.png")
@@ -34,9 +57,6 @@ class MainWindow(QMainWindow):
         # 初始化状态
         self.is_minimized = False
         self.monitoring = False
-        
-        # 提前初始化对话框，避免首次弹窗卡顿
-        self._pre_init_dialogs()
         
         # 创建中央窗口部件
         self.central_widget = QWidget()
@@ -57,21 +77,12 @@ class MainWindow(QMainWindow):
         # 加载配置
         self.load_config()
         
-        # 初始化监控管理器
-        self.monitor_manager = MonitorManager(
-            self.config, 
-            self.log_message,
-            self.content_panel.stats_page,
-            self.content_panel.auto_trade_page,
-            self.update_status_bar
-        )
-        
-        # 添加初始提示信息
-        self.log_message("应用程序已启动，等待配置...", "INFO")
-        self.log_message("请配置日志路径和至少一种推送方式", "INFO")
-        
         # 默认显示基本配置页面
         self._show_basic_config()
+        
+        # 启动非必要组件初始化线程
+        self.init_thread = InitThread(self)
+        self.init_thread.start()
         
     def _pre_init_dialogs(self):
         """预先初始化对话框组件，避免首次显示时卡顿"""
@@ -79,6 +90,23 @@ class MainWindow(QMainWindow):
         self.message_box.setWindowTitle("初始化")
         self.message_box.setText("正在初始化组件...")
         self.message_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+    
+    def _init_currency_fetcher(self):
+        """初始化通货价格获取器"""
+        self.currency_fetcher = CurrencyFetcher()
+        self.currency_fetcher.price_updated.connect(self._update_currency_price)
+        # 立即获取一次价格
+        self.currency_fetcher.fetch_price()
+    
+    def _init_monitor_manager(self):
+        """初始化监控管理器"""
+        self.monitor_manager = MonitorManager(
+            self.config, 
+            self.log_message,
+            self.content_panel.stats_page,
+            self.content_panel.auto_trade_page,
+            self.update_status_bar
+        )
         
     def create_widgets(self):
         """创建界面组件"""
@@ -92,12 +120,6 @@ class MainWindow(QMainWindow):
         self.status_bar_widget = StatusBarWidget()
         self.statusBar().addWidget(self.status_bar_widget)
         
-        # 初始化通货价格获取器
-        self.currency_fetcher = CurrencyFetcher()
-        self.currency_fetcher.price_updated.connect(self._update_currency_price)
-        # 立即获取一次价格
-        self.currency_fetcher.fetch_price()
-    
     def setup_layout(self):
         """设置界面布局"""
         self.main_layout.addWidget(self.menu_panel)
@@ -143,6 +165,10 @@ class MainWindow(QMainWindow):
         """显示自动交易页面"""
         self.content_panel.show_page('auto_trade')
         
+    def _show_tab_test(self):
+        """显示Tab测试页面"""
+        self.content_panel.show_page('tab_test')
+        
     def setup_tray(self):
         """初始化系统托盘"""
         # 设置回调函数
@@ -171,7 +197,8 @@ class MainWindow(QMainWindow):
             merged_config = self.content_panel.get_config_data()
             
             # 更新通货价格获取间隔
-            self.currency_fetcher.set_interval(merged_config.get('currency_interval', 5))
+            if hasattr(self, 'currency_fetcher'):
+                self.currency_fetcher.set_interval(merged_config.get('currency_interval', 5))
             
             # 更新并保存配置
             self.config.config = merged_config
@@ -204,6 +231,12 @@ class MainWindow(QMainWindow):
         if not self._validate_settings():
             return
             
+        # 确保监控管理器已初始化
+        if not hasattr(self, 'monitor_manager'):
+            self.log_message("监控管理器尚未初始化完成，请稍后再试", "ERROR")
+            show_toast(self, "初始化未完成", "监控管理器尚未初始化完成，请稍后再试", Toast.ERROR)
+            return
+            
         # 获取推送和自动交易配置    
         push_config = self.content_panel.push_manage_page.get_config_data()
         auto_trade_config = self.content_panel.auto_trade_page.get_config_data()
@@ -220,11 +253,13 @@ class MainWindow(QMainWindow):
             self.log_message("监控已成功启动", "SYSTEM")
             
             # 启动通货价格获取
-            self.currency_fetcher.start()
+            if hasattr(self, 'currency_fetcher'):
+                self.currency_fetcher.start()
     
     def _stop_monitoring(self):
         """停止监控"""
-        self.monitor_manager.stop_monitoring()
+        if hasattr(self, 'monitor_manager'):
+            self.monitor_manager.stop_monitoring()
             
         if hasattr(self, 'currency_fetcher'):
             self.currency_fetcher.stop()
