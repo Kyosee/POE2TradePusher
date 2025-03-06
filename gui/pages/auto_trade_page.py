@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PySide6.QtCore import Qt
 from core.auto_trade import TradeConfig
 from gui.widgets.switch import Switch
+from gui.styles import Styles
 import json
 
 class AutoTradePage(QWidget):
@@ -122,16 +123,7 @@ class AutoTradePage(QWidget):
         self.status_display = QTextEdit()
         self.status_display.setReadOnly(True)
         self.status_display.setFixedHeight(120)
-        self.status_display.setStyleSheet("""
-            QTextEdit {
-                background-color: white;
-                border: 1px solid #E6E7E8;
-                border-radius: 2px;
-                padding: 8px;
-                font-family: 微软雅黑;
-                font-size: 9pt;
-            }
-        """)
+        self.status_display.setStyleSheet(Styles().status_text_style)
         status_layout.addWidget(self.status_display)
         
         self.main_layout.addWidget(status_frame)
@@ -150,16 +142,7 @@ class AutoTradePage(QWidget):
         self.history_display = QTextEdit()
         self.history_display.setReadOnly(True)
         self.history_display.setMinimumHeight(200)
-        self.history_display.setStyleSheet("""
-            QTextEdit {
-                background-color: white;
-                border: 1px solid #E6E7E8;
-                border-radius: 2px;
-                padding: 8px;
-                font-family: 微软雅黑;
-                font-size: 9pt;
-            }
-        """)
+        self.history_display.setStyleSheet(Styles().status_text_style)
         history_layout.addWidget(self.history_display)
         
         self.main_layout.addWidget(history_frame)

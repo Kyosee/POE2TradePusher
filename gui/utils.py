@@ -33,6 +33,13 @@ def ask_yes_no(title, question):
     msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
     msg_box.setDefaultButton(QMessageBox.No)
     
+    # 设置按钮文本
+    msg_box.setButtonText(QMessageBox.Yes, "是")
+    msg_box.setButtonText(QMessageBox.No, "否")
+    
+    # 设置窗口为顶层窗口
+    msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowStaysOnTopHint)
+    
     return msg_box.exec() == QMessageBox.Yes
 
 def find_window(window_name):

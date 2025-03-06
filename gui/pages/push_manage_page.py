@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                     QPushButton, QLineEdit, QFrame, QGridLayout,
                                     QScrollArea)
 from PySide6.QtCore import Qt
+from ..styles import Styles
 from ..utils import LoggingMixin, ConfigMixin, show_message
 from gui.widgets.switch import Switch
 from gui.widgets.dialog import MessageDialog
@@ -33,27 +34,7 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
         self.content_layout.setSpacing(6)
         
         # 设置滚动区域样式
-        self.scroll_area.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background: transparent;
-            }
-            QScrollBar:vertical {
-                border: none;
-                background: #F0F0F0;
-                width: 8px;
-                margin: 0px;
-            }
-            QScrollBar::handle:vertical {
-                background: #CDCDCD;
-                min-height: 20px;
-                border-radius: 4px;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                border: none;
-                background: none;
-            }
-        """)
+        self.scroll_area.setStyleSheet(Styles().scroll_area_style)
         
         # 创建推送配置区域
         self._create_wxpusher_frame()  # WxPusher配置

@@ -24,7 +24,7 @@ class Styles:
             "SUCCESS": "#008000"
         }
         
-        # 日志页面样式
+        # 日志表格样式
         self.log_table_style = """
             QTableWidget {
                 background-color: white;
@@ -47,6 +47,7 @@ class Styles:
             }
         """
 
+        # 日志分页框架样式
         self.log_pagination_frame_style = """
             QFrame {
                 background-color: #F8F9FA;
@@ -55,7 +56,70 @@ class Styles:
             }
         """
 
+        # 状态显示文本框样式
+        self.status_text_style = """
+            QTextEdit {
+                background-color: white;
+                border: 1px solid #E6E7E8;
+                border-radius: 2px;
+                padding: 8px;
+                font-family: 微软雅黑;
+                font-size: 9pt;
+            }
+        """
+
+        # 通货配置表格样式
+        self.currency_table_style = """
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #E6E7E8;
+                border-radius: 2px;
+                padding: 0px;
+            }
+            QTableWidget:focus {
+                border: 1px solid #07C160;
+            }
+            QTableWidget::item {
+                padding: 4px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QTableWidget::item:selected {
+                background-color: #E6F7EF;
+                color: #333333;
+            }
+            QHeaderView::section {
+                background-color: #f5f5f5;
+                padding: 4px;
+                border: none;
+                border-bottom: 1px solid #ddd;
+                font-weight: bold;
+            }
+        """
+
         # 创建样式表
+        # 滚动区域样式
+        self.scroll_area_style = """
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #F0F0F0;
+                width: 8px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #CDCDCD;
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                border: none;
+                background: none;
+            }
+        """
+        
         self.stylesheet = self._create_stylesheet()
         
     def _create_stylesheet(self):

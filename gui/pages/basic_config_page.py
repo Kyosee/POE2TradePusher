@@ -7,6 +7,7 @@ from ..utils import LoggingMixin, ConfigMixin, show_message, ask_yes_no
 from utils.help_texts import KEYWORD_HELP
 from ..widgets.dialog import MessageDialog, InputDialog
 from ..widgets.switch import Switch
+from gui.styles import Styles
 import os
 
 class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
@@ -149,6 +150,7 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         
         self.keyword_entry = QLineEdit()
         self.keyword_entry.returnPressed.connect(self.add_keyword)
+        self.keyword_entry.setPlaceholderText("“|”分隔关键词，关键词均匹配才触发")
         input_layout.addWidget(self.keyword_entry)
         
         add_btn = QPushButton("➕ 添加")
@@ -184,7 +186,9 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         
         test_input_layout = QHBoxLayout()
         self.test_text = QTextEdit()
+        self.test_text.setPlaceholderText("请先在关键词列表中选中一个要测试的关键词模板，再输入要测试的内容")
         self.test_text.setFixedHeight(50)
+        self.test_text.setStyleSheet(Styles().status_text_style)
         test_input_layout.addWidget(self.test_text)
         
         test_btn = QPushButton("测试")
@@ -197,6 +201,7 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self.test_result = QTextEdit()
         self.test_result.setReadOnly(True)
         self.test_result.setFixedHeight(100)
+        self.test_result.setStyleSheet(Styles().status_text_style)
         test_layout.addWidget(self.test_result)
         
         keywords_layout.addWidget(test_frame)

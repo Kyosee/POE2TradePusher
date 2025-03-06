@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                     QPushButton, QFrame, QScrollArea)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
+from gui.styles import Styles
 import os
 import sys
 
@@ -109,27 +110,7 @@ class StatsPage(QWidget):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background: white;
-            }
-            QScrollBar:vertical {
-                border: none;
-                background: #F0F0F0;
-                width: 8px;
-                margin: 0px;
-            }
-            QScrollBar::handle:vertical {
-                background: #CDCDCD;
-                min-height: 20px;
-                border-radius: 4px;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                border: none;
-                background: none;
-            }
-        """)
+        scroll_area.setStyleSheet(Styles().scroll_area_style)
         
         # 创建容器widget
         self.currency_container = QWidget()

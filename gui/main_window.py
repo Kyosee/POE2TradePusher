@@ -12,6 +12,7 @@ from .content_panel import ContentPanel
 from .status_bar import StatusBarWidget
 from .monitor_manager import MonitorManager
 from .widgets.toast import show_toast, Toast
+from .utils import ask_yes_no
 
 class InitThread(QThread):
     """非必要组件初始化线程"""
@@ -323,9 +324,7 @@ class MainWindow(QMainWindow):
             
     def closeEvent(self, event):
         """处理窗口关闭事件"""
-        reply = QMessageBox.question(self, "确认", "是否要最小化到系统托盘？\n\n选择\"否\"将退出程序",
-                                   QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.Yes:
+        if ask_yes_no("确认", "是否要最小化到系统托盘？\n\n选择\"否\"将退出程序"):
             event.ignore()
             self.hide()
             self.is_minimized = True

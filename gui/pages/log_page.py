@@ -51,6 +51,7 @@ class LogPage(QWidget):
         self.log_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.log_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self.log_table.setEditTriggers(QTableWidget.NoEditTriggers)  # 设置为不可编辑
+        self.log_table.setSelectionBehavior(QTableWidget.SelectRows)  # 选择整行
         self.log_table.setAlternatingRowColors(True)  # 设置交替行颜色
         
         # 设置样式
@@ -66,7 +67,7 @@ class LogPage(QWidget):
     def _on_row_clicked(self, item):
         """处理行点击事件"""
         row = item.row()
-        self.log_table.selectRow(row)
+        self.selected_row = row
     
     def _on_item_double_clicked(self, item):
         """处理双击事件，显示完整消息内容"""

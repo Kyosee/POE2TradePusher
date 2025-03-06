@@ -1,13 +1,14 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                                    QPushButton, QLineEdit, QFrame, QMenu,
-                                    QScrollArea, QGridLayout, QTableWidget, QTableWidgetItem,
-                                    QHeaderView, QAbstractItemView)
+                              QPushButton, QLineEdit, QFrame, QMenu,
+                              QTableWidget, QTableWidgetItem,
+                              QHeaderView, QAbstractItemView)
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtGui import QPixmap
 import os
 import sys
 from ..utils import LoggingMixin, ConfigMixin, show_message, ask_yes_no
 from ..widgets.dialog import InputDialog
+from ..styles import Styles
 
 # 通货单位数据类，用于存储通货信息
 class CurrencyData:
@@ -22,6 +23,7 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         LoggingMixin.__init__(self, callback_log, callback_status)
         self.init_config()
         self.save_config = callback_save
+        self.styles = Styles()
         self.currency_items = []  # 存储通货单位项的引用
         self.selected_currency_item = None
         
@@ -95,33 +97,14 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self.currency_table.setEditTriggers(QAbstractItemView.NoEditTriggers)  # 禁止编辑
         self.currency_table.setSelectionBehavior(QAbstractItemView.SelectRows)  # 选择整行
         self.currency_table.setSelectionMode(QAbstractItemView.SingleSelection)  # 单选
-        self.currency_table.setShowGrid(False)  # 不显示网格线
-        self.currency_table.verticalHeader().setVisible(False)  # 隐藏垂直表头
+        self.currency_table.setAlternatingRowColors(True)  # 设置交替行颜色
         self.currency_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)  # 图片列固定宽度
         self.currency_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)  # 通货名称列自适应
         self.currency_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)  # 别名列自适应
         self.currency_table.setColumnWidth(0, 40)  # 设置图片列宽度
-        self.currency_table.setStyleSheet("""
-            QTableWidget {
-                border: none;
-                background: white;
-            }
-            QTableWidget::item {
-                padding: 4px;
-                border-bottom: 1px solid #f0f0f0;
-            }
-            QTableWidget::item:selected {
-                background-color: #e0f0ff;
-                color: black;
-            }
-            QHeaderView::section {
-                background-color: #f5f5f5;
-                padding: 4px;
-                border: none;
-                border-bottom: 1px solid #ddd;
-                font-weight: bold;
-            }
-        """)
+        
+        # 应用统一样式
+        self.currency_table.setStyleSheet(self.styles.currency_table_style)
         
         # 设置行高
         self.currency_table.verticalHeader().setDefaultSectionSize(34)
@@ -130,8 +113,9 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self.currency_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.currency_table.customContextMenuRequested.connect(self._show_context_menu)
         
-        # 连接选择事件
+        # 连接选择和双击事件
         self.currency_table.itemClicked.connect(self._on_table_item_clicked)
+        self.currency_table.itemDoubleClicked.connect(self._on_item_double_clicked)
         
         parent_layout.addWidget(self.currency_table)
         
@@ -152,7 +136,6 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         
     def _show_context_menu(self, pos):
         """显示右键菜单"""
-        # 获取当前选中的行
         row = self.currency_table.currentRow()
         if row >= 0:
             self.currency_menu.exec_(self.currency_table.viewport().mapToGlobal(pos))
@@ -207,9 +190,13 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
                 
     def _on_table_item_clicked(self, item):
         """处理表格项点击事件"""
-        # 获取当前选中的行
         row = item.row()
         self.selected_row = row
+        self.currency_table.selectRow(row)
+    
+    def _on_item_double_clicked(self, item):
+        """处理双击事件，打开编辑对话框"""
+        self.edit_currency()
             
     def edit_currency(self):
         """编辑选中的通货单位"""
