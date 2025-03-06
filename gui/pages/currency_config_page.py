@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                                     QPushButton, QLineEdit, QFrame, QMenu,
-                                    QScrollArea)
+                                    QScrollArea, QGridLayout, QTableWidget, QTableWidgetItem,
+                                    QHeaderView, QAbstractItemView)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QImage
 import os
@@ -8,35 +9,12 @@ import sys
 from ..utils import LoggingMixin, ConfigMixin, show_message, ask_yes_no
 from ..widgets.dialog import InputDialog
 
-class CurrencyItem(QFrame):
-    """通货单位项组件"""
-    def __init__(self, parent=None, currency="", img_path=""):
-        super().__init__(parent)
+# 通货单位数据类，用于存储通货信息
+class CurrencyData:
+    def __init__(self, currency="", alias="", img_path=""):
         self.currency = currency
-        
-        # 设置固定高度
-        self.setFixedHeight(34)
-        self.setProperty('class', 'currency-frame')
-        
-        # 创建布局
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(1, 1, 1, 1)
-        layout.setSpacing(2)
-        
-        # 创建图片标签
-        self.img_label = QLabel()
-        self.img_label.setFixedSize(30, 30)
-        if os.path.exists(img_path):
-            pixmap = QPixmap(img_path)
-            scaled_pixmap = pixmap.scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.img_label.setPixmap(scaled_pixmap)
-        
-        # 创建文本标签
-        self.text_label = QLabel(currency)
-        
-        # 布局
-        layout.addWidget(self.img_label)
-        layout.addWidget(self.text_label, 1)  # 1表示会自动扩展
+        self.alias = alias
+        self.img_path = img_path
         
 class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
     def __init__(self, master, callback_log, callback_status, callback_save=None):
@@ -83,8 +61,11 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         # 输入框和按钮
         input_layout = QHBoxLayout()
         
+        currency_label = QLabel("通货名称:")
         self.currency_entry = QLineEdit()
-        self.currency_entry.returnPressed.connect(self.add_currency)
+        
+        alias_label = QLabel("通货别名:")
+        self.alias_entry = QLineEdit()
         
         self.add_currency_btn = QPushButton("➕ 添加")
         self.add_currency_btn.clicked.connect(self.add_currency)
@@ -94,48 +75,65 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self.clear_currency_btn.clicked.connect(self.clear_currencies)
         self.clear_currency_btn.setProperty('class', 'danger-button')
         
+        input_layout.addWidget(currency_label)
         input_layout.addWidget(self.currency_entry)
+        input_layout.addWidget(alias_label)
+        input_layout.addWidget(self.alias_entry)
         input_layout.addWidget(self.add_currency_btn)
         input_layout.addWidget(self.clear_currency_btn)
         
+        # 设置回车键触发添加
+        self.currency_entry.returnPressed.connect(self.add_currency)
+        self.alias_entry.returnPressed.connect(self.add_currency)
+        
         parent_layout.addLayout(input_layout)
         
-        # 创建滚动区域
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
+        # 创建表格
+        self.currency_table = QTableWidget()
+        self.currency_table.setColumnCount(3)  # 图片、通货名称、别名
+        self.currency_table.setHorizontalHeaderLabels(["图片", "通货名称", "通货别名"])
+        self.currency_table.setEditTriggers(QAbstractItemView.NoEditTriggers)  # 禁止编辑
+        self.currency_table.setSelectionBehavior(QAbstractItemView.SelectRows)  # 选择整行
+        self.currency_table.setSelectionMode(QAbstractItemView.SingleSelection)  # 单选
+        self.currency_table.setShowGrid(False)  # 不显示网格线
+        self.currency_table.verticalHeader().setVisible(False)  # 隐藏垂直表头
+        self.currency_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)  # 图片列固定宽度
+        self.currency_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)  # 通货名称列自适应
+        self.currency_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)  # 别名列自适应
+        self.currency_table.setColumnWidth(0, 40)  # 设置图片列宽度
+        self.currency_table.setStyleSheet("""
+            QTableWidget {
                 border: none;
                 background: white;
             }
-            QScrollBar:vertical {
-                border: none;
-                background: #F0F0F0;
-                width: 8px;
-                margin: 0px;
+            QTableWidget::item {
+                padding: 4px;
+                border-bottom: 1px solid #f0f0f0;
             }
-            QScrollBar::handle:vertical {
-                background: #CDCDCD;
-                min-height: 20px;
-                border-radius: 4px;
+            QTableWidget::item:selected {
+                background-color: #e0f0ff;
+                color: black;
             }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            QHeaderView::section {
+                background-color: #f5f5f5;
+                padding: 4px;
                 border: none;
-                background: none;
+                border-bottom: 1px solid #ddd;
+                font-weight: bold;
             }
         """)
         
-        # 创建容器widget
-        self.currency_container = QWidget()
-        self.currency_container.setStyleSheet("background: white;")
-        self.currency_layout = QVBoxLayout(self.currency_container)
-        self.currency_layout.setContentsMargins(0, 0, 0, 0)
-        self.currency_layout.setSpacing(0)
-        self.currency_layout.addStretch()  # 添加弹性空间
+        # 设置行高
+        self.currency_table.verticalHeader().setDefaultSectionSize(34)
         
-        scroll_area.setWidget(self.currency_container)
-        parent_layout.addWidget(scroll_area)
+        # 连接右键菜单事件
+        self.currency_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.currency_table.customContextMenuRequested.connect(self._show_context_menu)
+        
+        # 连接选择事件
+        self.currency_table.itemClicked.connect(self._on_table_item_clicked)
+        
+        parent_layout.addWidget(self.currency_table)
         
     def _setup_currency_menu(self):
         """设置通货单位右键菜单"""
@@ -151,108 +149,131 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         
         copy_action = self.currency_menu.addAction("📋 复制")
         copy_action.triggered.connect(self.copy_currency)
+        
+    def _show_context_menu(self, pos):
+        """显示右键菜单"""
+        # 获取当前选中的行
+        row = self.currency_table.currentRow()
+        if row >= 0:
+            self.currency_menu.exec_(self.currency_table.viewport().mapToGlobal(pos))
                                      
     def add_currency(self):
         """添加通货单位"""
         currency = self.currency_entry.text().strip()
+        alias = self.alias_entry.text().strip()
+        
         if not currency:
             self.log_message("无法添加空通货单位", "WARN")
             return
             
         # 检查是否已存在
-        for item in self.currency_items:
-            if item.currency == currency:
-                self.log_message(f"重复通货单位: {currency}", "WARN")
+        for i in range(self.currency_table.rowCount()):
+            if self.currency_table.item(i, 1).text() == currency:
+                self.log_message("通货单位已存在", "WARN")
                 return
-                
-        # 创建新的通货单位项
+        
+        # 获取图片路径
         img_path = self._get_resource_path(f"{currency.lower()}.png")
-        item = CurrencyItem(currency=currency, img_path=img_path)
         
-        # 设置点击事件
-        item.mousePressEvent = lambda e, item=item: self._on_currency_click(e, item)
+        # 添加到表格
+        row = self.currency_table.rowCount()
+        self.currency_table.insertRow(row)
         
-        # 插入到倒数第二个位置（最后一个是stretch）
-        self.currency_layout.insertWidget(len(self.currency_items), item)
-        self.currency_items.append(item)
+        # 创建图片单元格
+        img_label = QLabel()
+        img_label.setAlignment(Qt.AlignCenter)
+        if os.path.exists(img_path):
+            pixmap = QPixmap(img_path)
+            scaled_pixmap = pixmap.scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            img_label.setPixmap(scaled_pixmap)
+        self.currency_table.setCellWidget(row, 0, img_label)
         
+        # 创建通货名称和别名单元格
+        self.currency_table.setItem(row, 1, QTableWidgetItem(currency))
+        self.currency_table.setItem(row, 2, QTableWidgetItem(alias))
+        
+        # 添加到通货项列表
+        self.currency_items.append(CurrencyData(currency=currency, alias=alias, img_path=img_path))
+        
+        # 清空输入框
         self.currency_entry.clear()
+        self.alias_entry.clear()
+        self.currency_entry.setFocus()
+        
+        # 记录日志
         self.log_message(f"已添加通货单位: {currency}")
-        
-        # 自动保存配置
         if self.save_config:
-            try:
-                self.save_config()
-                self.update_status(f"✨ 已添加并保存通货单位: {currency}")
-            except Exception as e:
-                self.log_message(f"保存配置失败: {e}", "ERROR")
+            self.save_config()
                 
-    def _on_currency_click(self, event, item):
-        """处理通货单位项点击事件"""
-        # 清除其他项的选中状态
-        if self.selected_currency_item:
-            self.selected_currency_item.setProperty('selected', False)
-            self.selected_currency_item.style().unpolish(self.selected_currency_item)
-            self.selected_currency_item.style().polish(self.selected_currency_item)
-            
-        # 设置当前项的选中状态
-        item.setProperty('selected', True)
-        item.style().unpolish(item)
-        item.style().polish(item)
-        self.selected_currency_item = item
-        
-        # 处理右键点击
-        if event.button() == Qt.RightButton:
-            self.currency_menu.exec_(event.globalPos())
+    def _on_table_item_clicked(self, item):
+        """处理表格项点击事件"""
+        # 获取当前选中的行
+        row = item.row()
+        self.selected_row = row
             
     def edit_currency(self):
         """编辑选中的通货单位"""
-        if not self.selected_currency_item:
+        row = self.currency_table.currentRow()
+        if row < 0:
             return
             
-        current_currency = self.selected_currency_item.currency
-            
-        def save_edit(new_currency):
-            if new_currency and new_currency != current_currency:
+        current_currency = self.currency_table.item(row, 1).text()
+        current_alias = self.currency_table.item(row, 2).text()
+        
+        def save_edit(new_currency, new_alias):
+            if not new_currency:
+                show_message("提示", "通货名称不能为空", "warning")
+                return
+                
+            if new_currency != current_currency:
                 # 检查是否已存在
-                for item in self.currency_items:
-                    if item != self.selected_currency_item and \
-                       item.currency == new_currency:
+                for i in range(self.currency_table.rowCount()):
+                    if i != row and self.currency_table.item(i, 1).text() == new_currency:
                         show_message("提示", "通货单位已存在", "warning")
                         return
-                        
-                # 更新通货单位
-                index = self.currency_layout.indexOf(self.selected_currency_item)
-                self.currency_layout.removeWidget(self.selected_currency_item)
-                self.currency_items.remove(self.selected_currency_item)
-                self.selected_currency_item.deleteLater()
+            
+            # 更新表格中的数据
+            self.currency_table.item(row, 1).setText(new_currency)
+            self.currency_table.item(row, 2).setText(new_alias)
+            
+            # 更新通货项列表
+            self.currency_items[row].currency = new_currency
+            self.currency_items[row].alias = new_alias
+            
+            # 更新图片
+            img_path = self._get_resource_path(f"{new_currency.lower()}.png")
+            self.currency_items[row].img_path = img_path
+            
+            img_label = QLabel()
+            img_label.setAlignment(Qt.AlignCenter)
+            if os.path.exists(img_path):
+                pixmap = QPixmap(img_path)
+                scaled_pixmap = pixmap.scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                img_label.setPixmap(scaled_pixmap)
+            self.currency_table.setCellWidget(row, 0, img_label)
+            
+            self.log_message(f"通货单位已更新: {current_currency} → {new_currency}")
+            if self.save_config:
+                self.save_config()
                 
-                # 创建新项
-                img_path = self._get_resource_path(f"{new_currency.lower()}.png")
-                new_item = CurrencyItem(currency=new_currency, img_path=img_path)
-                new_item.mousePressEvent = lambda e, item=new_item: self._on_currency_click(e, item)
-                
-                self.currency_layout.insertWidget(index, new_item)
-                self.currency_items.append(new_item)
-                self.selected_currency_item = new_item
-                
-                self.log_message(f"通货单位已更新: {current_currency} → {new_currency}")
-                if self.save_config:
-                    self.save_config()
-                    
         # 使用InputDialog进行编辑
-        InputDialog(self, "编辑通货单位", "请输入新的通货单位：", current_currency, save_edit)
+        dialog = InputDialog(self, "编辑通货单位", 
+                           ["通货名称:", "通货别名:"], 
+                           [current_currency, current_alias], 
+                           lambda values: save_edit(values[0], values[1]))
+        dialog.exec_()
             
     def remove_selected_currency(self):
         """删除选中的通货单位"""
-        if not self.selected_currency_item:
+        row = self.currency_table.currentRow()
+        if row < 0:
             return
             
-        currency = self.selected_currency_item.currency
-        self.currency_layout.removeWidget(self.selected_currency_item)
-        self.currency_items.remove(self.selected_currency_item)
-        self.selected_currency_item.deleteLater()
-        self.selected_currency_item = None
+        currency = self.currency_table.item(row, 1).text()
+        
+        # 从表格和数据列表中移除
+        self.currency_table.removeRow(row)
+        self.currency_items.pop(row)
         
         self.log_message(f"已移除通货单位: {currency}")
         if self.save_config:
@@ -261,11 +282,8 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
     def clear_currencies(self):
         """清空通货单位"""
         if ask_yes_no("确认清空", "确定要清空所有通货单位吗？\n此操作无法撤销"):
-            for item in self.currency_items:
-                self.currency_layout.removeWidget(item)
-                item.deleteLater()
+            self.currency_table.setRowCount(0)
             self.currency_items.clear()
-            self.selected_currency_item = None
             
             self.log_message("已清空通货单位列表")
             self.update_status("✨ 已清空通货单位列表")
@@ -274,34 +292,54 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
             
     def copy_currency(self):
         """复制选中的通货单位到剪贴板"""
-        if not self.selected_currency_item:
+        row = self.currency_table.currentRow()
+        if row < 0:
             return
             
+        currency = self.currency_table.item(row, 1).text()
+        
         from PySide6.QtGui import QGuiApplication
         clipboard = QGuiApplication.clipboard()
-        clipboard.setText(self.selected_currency_item.currency)
-        self.update_status(f"已复制: {self.selected_currency_item.currency}")
+        clipboard.setText(currency)
+        self.update_status(f"已复制: {currency}")
             
     def get_config_data(self):
         """获取配置数据"""
         return {
-            'currencies': [item.currency for item in self.currency_items]
+            'currencies': [item.currency for item in self.currency_items],
+            'currency_aliases': {item.currency: item.alias for item in self.currency_items if item.alias}
         }
         
     def set_config_data(self, data):
         """设置配置数据"""
-        # 清空现有通货单位
-        for item in self.currency_items:
-            self.currency_layout.removeWidget(item)
-            item.deleteLater()
+        # 清空表格
+        self.currency_table.setRowCount(0)
         self.currency_items.clear()
-        self.selected_currency_item = None
+        
+        # 获取别名数据
+        aliases = data.get('currency_aliases', {})
         
         # 添加新的通货单位
         for currency in data.get('currencies', []):
+            alias = aliases.get(currency, "")
             img_path = self._get_resource_path(f"{currency.lower()}.png")
-            item = CurrencyItem(currency=currency, img_path=img_path)
-            item.mousePressEvent = lambda e, item=item: self._on_currency_click(e, item)
             
-            self.currency_layout.insertWidget(len(self.currency_items), item)
-            self.currency_items.append(item)
+            # 添加到表格
+            row = self.currency_table.rowCount()
+            self.currency_table.insertRow(row)
+            
+            # 创建图片单元格
+            img_label = QLabel()
+            img_label.setAlignment(Qt.AlignCenter)
+            if os.path.exists(img_path):
+                pixmap = QPixmap(img_path)
+                scaled_pixmap = pixmap.scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                img_label.setPixmap(scaled_pixmap)
+            self.currency_table.setCellWidget(row, 0, img_label)
+            
+            # 创建通货名称和别名单元格
+            self.currency_table.setItem(row, 1, QTableWidgetItem(currency))
+            self.currency_table.setItem(row, 2, QTableWidgetItem(alias))
+            
+            # 添加到通货项列表
+            self.currency_items.append(CurrencyData(currency=currency, alias=alias, img_path=img_path))

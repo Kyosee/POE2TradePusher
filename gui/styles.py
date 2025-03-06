@@ -16,13 +16,45 @@ class Styles:
         
         # 日志颜色映射
         self.log_colors = {
-            "INFO": "#333333",
-            "DEBUG": "#666666",
-            "WARN": "#d35400",
-            "ERROR": "#c0392b",
-            "ALERT": "#8e44ad"
+            "INFO": "#000000",
+            "DEBUG": "#808080",
+            "WARNING": "#FF8C00",
+            "ERROR": "#FF0000",
+            "SYSTEM": "#0000FF",
+            "SUCCESS": "#008000"
         }
         
+        # 日志页面样式
+        self.log_table_style = """
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #E6E7E8;
+                border-radius: 2px;
+                padding: 0px;
+            }
+            QTableWidget:focus {
+                border: 1px solid #07C160;
+            }
+            QTableWidget::item:selected {
+                background-color: #E6F7EF;
+                color: #333333;
+            }
+            QHeaderView::section {
+                background-color: #F5F5F5;
+                padding: 4px;
+                border: 1px solid #E6E7E8;
+                font-weight: bold;
+            }
+        """
+
+        self.log_pagination_frame_style = """
+            QFrame {
+                background-color: #F8F9FA;
+                border: 1px solid #E6E7E8;
+                border-radius: 2px;
+            }
+        """
+
         # 创建样式表
         self.stylesheet = self._create_stylesheet()
         

@@ -1,15 +1,24 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                                    QPushButton, QLineEdit, QTextEdit, QFrame)
+                              QPushButton, QLineEdit, QFrame, QTableWidget, QTableWidgetItem,
+                              QHeaderView)
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
+import time
 from core.process_modules.game_command import GameCommandModule
+from ..styles import Styles
 
 class CommandTestPage(QWidget):
     def __init__(self, parent, log_callback=None):
         super().__init__(parent)
         self.log_callback = log_callback if log_callback else lambda x, y: None
+        self.styles = Styles()
+        
+        # 设置GameCommandModule的日志回调
         self.game_command = GameCommandModule()
-        self.game_command.logger.info = lambda x: self.log_callback(x, "INFO")
-        self.game_command.logger.error = lambda x: self.log_callback(x, "ERROR")
+        def log_info(msg): self.log_callback(msg, "INFO")
+        def log_error(msg): self.log_callback(msg, "ERROR")
+        self.game_command.logger.info = log_info
+        self.game_command.logger.error = log_error
         
         # 创建主布局
         self.main_layout = QVBoxLayout(self)
@@ -57,38 +66,56 @@ class CommandTestPage(QWidget):
         log_title.setProperty('class', 'card-title')
         self.main_layout.addWidget(log_title)
         
-        # 日志文本框
-        self.log_display = QTextEdit()
-        self.log_display.setReadOnly(True)
-        self.log_display.setStyleSheet("""
-            QTextEdit {
-                background-color: white;
-                border: 1px solid #E6E7E8;
-                border-radius: 2px;
-                padding: 8px;
-                font-family: 微软雅黑;
-                font-size: 9pt;
-            }
-        """)
+        # 创建日志表格
+        self.log_table = QTableWidget()
+        self.log_table.setColumnCount(3)
+        self.log_table.setHorizontalHeaderLabels(["级别", "时间", "消息"])
+        self.log_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.log_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.log_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.log_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.log_table.setAlternatingRowColors(True)
         
-        log_layout.addWidget(self.log_display)
+        # 设置日志表格样式
+        self.log_table.setStyleSheet(self.styles.log_table_style)
+        
+        # 添加日志表格到布局
+        log_layout.addWidget(self.log_table)
         self.main_layout.addWidget(log_frame)
         
-    def add_log(self, message):
-        """添加日志到显示区域"""
-        self.log_display.append(message)
+    def add_local_log(self, message, level="INFO"):
+        """添加日志到本地表格并发送到全局日志"""
+        self.log_callback(message, level)
+        
+        # 更新本地表格显示
+        row = self.log_table.rowCount()
+        self.log_table.insertRow(row)
+        
+        # 级别列
+        level_item = QTableWidgetItem(level)
+        level_item.setTextAlignment(Qt.AlignCenter)
+        level_item.setForeground(QColor(self.styles.log_colors.get(level, "#000000")))
+        self.log_table.setItem(row, 0, level_item)
+        
+        # 时间列
+        time_item = QTableWidgetItem(time.strftime("%Y-%m-%d %H:%M:%S"))
+        self.log_table.setItem(row, 1, time_item)
+        
+        # 消息列
+        message_item = QTableWidgetItem(message)
+        message_item.setForeground(QColor(self.styles.log_colors.get(level, "#000000")))
+        self.log_table.setItem(row, 2, message_item)
+        
         # 滚动到底部
-        self.log_display.verticalScrollBar().setValue(
-            self.log_display.verticalScrollBar().maximum()
-        )
+        self.log_table.scrollToBottom()
     
     def on_test_clicked(self):
         """测试按钮点击事件处理"""
         command = self.command_input.text().strip()
         if command:
-            self.add_log(f"执行命令: {command}")
+            self.add_local_log(f"执行命令: {command}")
             result = self.game_command.run(command_text=command)
             if result:
-                self.add_log("命令执行成功")
+                self.add_local_log("命令执行成功", "SUCCESS")
             else:
-                self.add_log("命令执行失败")
+                self.add_local_log("命令执行失败", "ERROR")

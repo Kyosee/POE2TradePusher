@@ -43,7 +43,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         
         self.setWindowTitle("POE2 Trade Pusher")
-        self.resize(1000, 800)
+        self.resize(1068, 948)
         self.always_on_top = False
         
         # 设置应用图标

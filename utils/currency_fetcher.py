@@ -32,7 +32,9 @@ class CurrencyFetcher(QObject):
     def fetch_price(self):
         """获取价格"""
         try:
-            response = requests.get(self.url, headers=self.headers, timeout=10)
+            # 禁用SSL验证 - 注意：这种方式不够安全，但在这个特定场景下是可接受的
+            # TODO: 考虑在未来添加proper的证书验证
+            response = requests.get(self.url, headers=self.headers, timeout=10, verify=False)
             response.encoding = 'utf-8'
             
             # 使用正则表达式查找第一个class为m-t5的p标签内容

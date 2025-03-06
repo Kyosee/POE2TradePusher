@@ -1,16 +1,17 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                                    QPushButton, QFrame, QTextEdit, QScrollArea)
+                              QPushButton, QFrame, QScrollArea, QTableWidget, QTableWidgetItem,
+                              QHeaderView)
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtGui import QPixmap, QImage, QColor
 import win32gui
-import win32con
-import win32api
 import cv2
 import numpy as np
 import os
 from pathlib import Path
 from PIL import ImageGrab, Image
+import time
 from ..utils import LoggingMixin, find_window
+from ..styles import Styles
 
 class RecognitionBasePage(QWidget, LoggingMixin):
     """识别功能基类"""
@@ -18,6 +19,7 @@ class RecognitionBasePage(QWidget, LoggingMixin):
         super().__init__(master)
         LoggingMixin.__init__(self, callback_log, callback_status)
         self.main_window = main_window
+        self.styles = Styles()
         
         self.template_path = None
         self.template = None
@@ -34,17 +36,14 @@ class RecognitionBasePage(QWidget, LoggingMixin):
         
     def _preprocess_image(self, image):
         """图像预处理以提高识别率"""
-        # 转换为OpenCV格式
         if isinstance(image, QImage):
-            # 将QImage转换为numpy数组
             width = image.width()
             height = image.height()
             ptr = image.constBits()
-            ptr.setsize(height * width * 4)  # 32位RGBA
-            arr = np.array(ptr).reshape(height, width, 4)  # RGBA
+            ptr.setsize(height * width * 4)
+            arr = np.array(ptr).reshape(height, width, 4)
             img = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
         else:
-            # 假设是PIL图像
             img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         return img
         
@@ -84,30 +83,25 @@ class RecognitionBasePage(QWidget, LoggingMixin):
         
     def _create_search_frame(self):
         """创建搜索栏"""
-        # 创建框架
         search_frame = QFrame()
         search_frame.setProperty('class', 'card-frame')
         layout = QHBoxLayout(search_frame)
         layout.setContentsMargins(10, 10, 10, 10)
         
-        # 标题
         title_label = QLabel("识别设置")
         title_label.setProperty('class', 'card-title')
         self.main_layout.addWidget(title_label)
         
-        # 按钮容器
         btn_container = QWidget()
         btn_layout = QHBoxLayout(btn_container)
         btn_layout.setContentsMargins(0, 0, 0, 0)
         btn_layout.setSpacing(6)
         
-        # 识别按钮
         self.recognize_btn = QPushButton("🔍 识别")
         self.recognize_btn.clicked.connect(self._do_recognition)
         self.recognize_btn.setProperty('class', 'normal-button')
         btn_layout.addWidget(self.recognize_btn)
         
-        # 刷新按钮
         refresh_btn = QPushButton("🔄 刷新")
         refresh_btn.clicked.connect(self._refresh_preview)
         refresh_btn.setProperty('class', 'normal-button')
@@ -120,25 +114,21 @@ class RecognitionBasePage(QWidget, LoggingMixin):
         
     def _create_preview_frame(self):
         """创建预览区域"""
-        # 创建框架
         preview_frame = QFrame()
         preview_frame.setProperty('class', 'card-frame')
         layout = QVBoxLayout(preview_frame)
         layout.setContentsMargins(10, 10, 10, 10)
         
-        # 标题
         title_label = QLabel("截图预览")
         title_label.setProperty('class', 'card-title')
         self.main_layout.addWidget(title_label)
         
-        # 创建滚动区域
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFixedHeight(400)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         
-        # 创建预览标签
         self.preview_label = QLabel()
         self.preview_label.setAlignment(Qt.AlignCenter)
         scroll_area.setWidget(self.preview_label)
@@ -148,33 +138,28 @@ class RecognitionBasePage(QWidget, LoggingMixin):
         
     def _create_log_frame(self):
         """创建日志区域"""
-        # 创建框架
         log_frame = QFrame()
         log_frame.setProperty('class', 'card-frame')
         layout = QVBoxLayout(log_frame)
         layout.setContentsMargins(10, 10, 10, 10)
         
-        # 标题
         title_label = QLabel("识别日志")
         title_label.setProperty('class', 'card-title')
         self.main_layout.addWidget(title_label)
         
-        # 日志文本区域
-        self.log_text = QTextEdit()
-        self.log_text.setReadOnly(True)
-        self.log_text.setFixedHeight(120)
-        self.log_text.setStyleSheet("""
-            QTextEdit {
-                background-color: white;
-                border: 1px solid #E6E7E8;
-                border-radius: 2px;
-                padding: 8px;
-                font-family: 微软雅黑;
-                font-size: 9pt;
-            }
-        """)
+        self.log_table = QTableWidget()
+        self.log_table.setColumnCount(3)
+        self.log_table.setHorizontalHeaderLabels(["级别", "时间", "消息"])
+        self.log_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.log_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.log_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.log_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.log_table.setAlternatingRowColors(True)
+        self.log_table.setFixedHeight(120)
         
-        layout.addWidget(self.log_text)
+        self.log_table.setStyleSheet(self.styles.log_table_style)
+        
+        layout.addWidget(self.log_table)
         self.main_layout.addWidget(log_frame)
         
     def _get_window_name(self):
@@ -206,14 +191,11 @@ class RecognitionBasePage(QWidget, LoggingMixin):
         
     def _pil_to_pixmap(self, pil_image, target_width=800):
         """将PIL图像转换为QPixmap"""
-        # 计算缩放比例
         ratio = target_width / pil_image.width
         new_height = int(pil_image.height * ratio)
         
-        # 调整图像大小
         pil_image = pil_image.resize((target_width, new_height), Image.LANCZOS)
         
-        # 转换为QImage
         img_data = pil_image.convert("RGBA").tobytes()
         qimg = QImage(img_data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
         
@@ -222,20 +204,16 @@ class RecognitionBasePage(QWidget, LoggingMixin):
     def _refresh_preview(self):
         """刷新预览图像"""
         try:
-            # 获取游戏窗口名称
             window_name = self._get_window_name()
             
-            # 查找窗口
             hwnd = self._find_window(window_name)
             if not hwnd:
                 self._add_log(f"未找到游戏窗口: {window_name}", "WARNING")
                 return False
                 
-            # 获取窗口区域并截图
             rect = self._get_window_rect(hwnd)
             image = self._grab_screen(rect)
             
-            # 转换为QPixmap并更新预览
             pixmap = self._pil_to_pixmap(image)
             self.preview_label.setPixmap(pixmap)
             
@@ -251,9 +229,27 @@ class RecognitionBasePage(QWidget, LoggingMixin):
         raise NotImplementedError("子类必须实现此方法")
             
     def _add_log(self, message, level="INFO"):
-        """添加日志"""
-        self.log_text.append(message)
-        self.log_text.verticalScrollBar().setValue(
-            self.log_text.verticalScrollBar().maximum()
-        )
+        """添加日志到本地表格并发送到全局日志"""
         self.log_message(message, level)
+        
+        # 更新本地表格显示
+        row = self.log_table.rowCount()
+        self.log_table.insertRow(row)
+        
+        # 级别列
+        level_item = QTableWidgetItem(level)
+        level_item.setTextAlignment(Qt.AlignCenter)
+        level_item.setForeground(QColor(self.styles.log_colors.get(level, "#000000")))
+        self.log_table.setItem(row, 0, level_item)
+        
+        # 时间列
+        time_item = QTableWidgetItem(time.strftime("%Y-%m-%d %H:%M:%S"))
+        self.log_table.setItem(row, 1, time_item)
+        
+        # 消息列
+        message_item = QTableWidgetItem(message)
+        message_item.setForeground(QColor(self.styles.log_colors.get(level, "#000000")))
+        self.log_table.setItem(row, 2, message_item)
+        
+        # 滚动到底部
+        self.log_table.scrollToBottom()

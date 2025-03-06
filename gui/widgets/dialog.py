@@ -68,23 +68,40 @@ class MessageDialog(QDialog):
         layout.addLayout(button_layout)
 
 class InputDialog(QDialog):
-    """输入对话框"""
-    def __init__(self, parent, title, prompt, default_text="", callback=None):
+    """多字段输入对话框"""
+    def __init__(self, parent, title, prompts, default_texts=None, callback=None):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.callback = callback
+        self.input_fields = []
         
         # 创建布局
         layout = QVBoxLayout(self)
         
-        # 添加提示文本
-        layout.addWidget(QLabel(prompt))
+        # 如果传入单个字符串，转换为列表
+        if isinstance(prompts, str):
+            prompts = [prompts]
+        if isinstance(default_texts, str):
+            default_texts = [default_texts]
         
-        # 添加输入框
-        self.input_field = QLineEdit()
-        self.input_field.setText(default_text)
-        self.input_field.selectAll()
-        layout.addWidget(self.input_field)
+        # 确保default_texts是列表且长度与prompts相同
+        if default_texts is None:
+            default_texts = [""] * len(prompts)
+        elif len(default_texts) != len(prompts):
+            default_texts.extend([""] * (len(prompts) - len(default_texts)))
+        
+        # 添加输入字段
+        for prompt, default_text in zip(prompts, default_texts):
+            # 添加提示文本
+            layout.addWidget(QLabel(prompt))
+            
+            # 添加输入框
+            input_field = QLineEdit()
+            input_field.setText(default_text)
+            if len(self.input_fields) == 0:  # 只选择第一个输入框的内容
+                input_field.selectAll()
+            layout.addWidget(input_field)
+            self.input_fields.append(input_field)
         
         # 添加按钮区域
         button_layout = QHBoxLayout()
@@ -105,10 +122,13 @@ class InputDialog(QDialog):
         
         # 设置默认按钮和回车键触发
         ok_button.setDefault(True)
-        self.input_field.returnPressed.connect(self.accept_input)
+        for input_field in self.input_fields:
+            input_field.returnPressed.connect(self.accept_input)
     
     def accept_input(self):
         """接受输入内容并回调"""
         if self.callback:
-            self.callback(self.input_field.text())
+            values = [field.text() for field in self.input_fields]
+            # 如果只有一个输入字段，返回单个值而不是列表
+            self.callback(values[0] if len(values) == 1 else values)
         self.accept()
