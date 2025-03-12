@@ -141,7 +141,7 @@ class YOLOModelLoader(ModelLoader):
             cls._instance = super(YOLOModelLoader, cls).__new__(cls)
         return cls._instance
     
-    def __init__(self, model_path="models/poe_currency_yolov12.pt", logger=None):
+    def __init__(self, model_path="models/poe_item_yolov12.pt", logger=None):
         """初始化YOLO模型加载器
         
         Args:
@@ -153,7 +153,7 @@ class YOLOModelLoader(ModelLoader):
             
         super().__init__(logger)
         self.model_path = model_path
-        self.supported_currencies = {}
+        self.supported_items = {}
         self.use_cuda = torch.cuda.is_available()
         self.device = torch.device("cuda" if self.use_cuda else "cpu")
         self.detection_threshold = 0.45
@@ -207,9 +207,9 @@ class YOLOModelLoader(ModelLoader):
                 self.model.dynamic = True  # 动态ONNX导出
             
             # 记录支持的通货类型
-            self.supported_currencies = self.model.names
+            self.supported_items = self.model.names
             self.logger.info(f"YOLOv12模型已加载: {self.model_path}")
-            self.logger.info(f"支持的通货类型: {self.supported_currencies}")
+            self.logger.info(f"支持的物品类型: {self.supported_items}")
         except Exception as e:
             self.logger.error(f"加载YOLOv12模型失败: {str(e)}")
             import traceback

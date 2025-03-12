@@ -4,7 +4,7 @@
 
 ## 模型文件
 
-程序需要一个名为`poe_currency_yolov12.pt`的YOLOv12模型文件，放置在此文件夹中。
+程序需要一个名为`poe_item_yolov12.pt`的YOLOv12模型文件，放置在此文件夹中。
 
 ## 如何训练YOLOv12模型
 
@@ -22,7 +22,7 @@
    python train.py --img 640 --batch 16 --epochs 100 --data path/to/data.yaml --weights yolov12-base.pt
    ```
 
-3. 将训练好的模型文件复制到此目录并命名为`poe_currency_yolov12.pt`
+3. 将训练好的模型文件复制到此目录并命名为`poe_item_yolov12.pt`
 
 ## YOLOv12的优势
 
@@ -40,9 +40,9 @@ YOLOv12相比之前的版本有以下优势：
 如果没有条件训练自己的模型，可以使用预训练模型：
 
 1. 下载预训练模型文件：[下载链接]
-2. 将文件重命名为`poe_currency_yolov12.pt`并放在此文件夹中
+2. 将文件重命名为`poe_item_yolov12.pt`并放在此文件夹中
 
-## 支持的通货类型
+## 支持的物品类型
 
 当前模型支持识别以下通货类型：
 

@@ -5,7 +5,7 @@ from .pages.position_test_page import PositionTestPage
 from .pages.command_test_page import CommandTestPage
 from .pages.auto_trade_page import AutoTradePage
 from .pages.tab_test_page import TabTestPage
-from .pages.trade_test_page import TradeTestPage
+from .pages.item_recognition_page import ItemRecognitionPage
 from .pages.account_manage_page import AccountManagePage
 
 class ContentPanel(QFrame):
@@ -95,8 +95,8 @@ class ContentPanel(QFrame):
         self.tab_test_page.setProperty('class', 'page-container')
         self.content_layout.addWidget(self.tab_test_page)
         
-        # 创建交易测试页面
-        self.trade_test_page = TradeTestPage(self, self.log_message,
+        # 创建物品识别页面
+        self.trade_test_page = ItemRecognitionPage(self, self.log_message,
                                           self.update_status_bar, self.main_window)
         self.trade_test_page.setProperty('class', 'page-container')
         self.content_layout.addWidget(self.trade_test_page)

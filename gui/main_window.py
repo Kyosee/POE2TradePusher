@@ -195,7 +195,7 @@ class MainWindow(QMainWindow):
         self.content_panel.show_page('tab_test')
         
     def _show_trade_test(self):
-        """显示交易测试页面"""
+        """显示物品识别页面"""
         self.content_panel.show_page('trade_test')
         
     def setup_tray(self):

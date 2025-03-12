@@ -41,7 +41,7 @@ class MenuPanel(QFrame):
                 ('定位测试', self.show_grid_recognition),
                 ('命令测试', self.show_command_test),
                 ('Tab测试', self.show_tab_test),
-                ('交易测试', self.show_trade_test)
+                ('物品识别', self.show_trade_test)
             ])
         ]
         
@@ -213,6 +213,6 @@ class MenuPanel(QFrame):
         self._update_menu_state(7, 'Tab测试')
         
     def show_trade_test(self):
-        """显示交易测试页面"""
+        """显示物品识别页面"""
         self.main_window._show_trade_test()
-        self._update_menu_state(7, '交易测试')
+        self._update_menu_state(7, '物品识别')

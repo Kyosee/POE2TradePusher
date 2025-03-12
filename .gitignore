@@ -39,6 +39,7 @@ config.json
 *.log
 release/
 debug/
+models/
 data/
 assets/icon.ico
 assets/tab/

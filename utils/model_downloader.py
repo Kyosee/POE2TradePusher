@@ -20,7 +20,7 @@ class ModelDownloader:
         os.makedirs(self.model_dir, exist_ok=True)
         
         # 模型文件路径
-        self.yolov12_path = os.path.join(self.model_dir, "poe_currency_yolov12.pt")
+        self.yolov12_path = os.path.join(self.model_dir, "poe_item_yolov12.pt")
     
     def check_and_download(self, force=False):
         """
