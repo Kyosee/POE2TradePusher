@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (QDialog, QFrame, QPushButton, QLabel, QTextEdit, 
-                                    QLineEdit, QVBoxLayout, QHBoxLayout, QWidget)
+                                    QLineEdit, QVBoxLayout, QHBoxLayout, QWidget, QComboBox)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
@@ -69,11 +69,12 @@ class MessageDialog(QDialog):
 
 class InputDialog(QDialog):
     """多字段输入对话框"""
-    def __init__(self, parent, title, prompts, default_texts=None, callback=None):
+    def __init__(self, parent, title, prompts, default_texts=None, callback=None, combo_options=None):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.callback = callback
         self.input_fields = []
+        self.combo_options = combo_options or {}
         
         # 创建布局
         layout = QVBoxLayout(self)
@@ -86,24 +87,33 @@ class InputDialog(QDialog):
         
         # 确保default_texts是列表且长度与prompts相同
         if default_texts is None:
-            default_texts = [""] * len(prompts)
+            default_texts = ["" for _ in range(len(prompts))]
         elif len(default_texts) != len(prompts):
-            default_texts.extend([""] * (len(prompts) - len(default_texts)))
+            default_texts.extend(["" for _ in range(len(prompts) - len(default_texts))])
         
         # 添加输入字段
-        for prompt, default_text in zip(prompts, default_texts):
+        for i, (prompt, default_text) in enumerate(zip(prompts, default_texts)):
             # 添加提示文本
             layout.addWidget(QLabel(prompt))
             
-            # 添加输入框
-            input_field = QLineEdit()
-            input_field.setText(default_text)
-            if len(self.input_fields) == 0:  # 只选择第一个输入框的内容
-                input_field.selectAll()
+            # 检查是否应该使用下拉框
+            if i in self.combo_options:
+                # 添加下拉框
+                input_field = QComboBox()
+                input_field.addItems(self.combo_options[i])
+                # 设置默认选中项
+                index = input_field.findText(default_text)
+                if index >= 0:
+                    input_field.setCurrentIndex(index)
+            else:
+                # 添加输入框
+                input_field = QLineEdit()
+                input_field.setText(default_text)
+            
             layout.addWidget(input_field)
             self.input_fields.append(input_field)
         
-        # 添加按钮区域
+        # 添加按钮
         button_layout = QHBoxLayout()
         
         # 取消按钮
@@ -114,21 +124,32 @@ class InputDialog(QDialog):
         ok_button = QPushButton("确定")
         ok_button.clicked.connect(self.accept_input)
         
-        button_layout.addStretch()
         button_layout.addWidget(cancel_button)
         button_layout.addWidget(ok_button)
         
         layout.addLayout(button_layout)
         
-        # 设置默认按钮和回车键触发
+        # 设置默认按钮
         ok_button.setDefault(True)
-        for input_field in self.input_fields:
-            input_field.returnPressed.connect(self.accept_input)
+        
+        # 设置窗口大小
+        self.setMinimumWidth(300)
+        self.adjustSize()
     
     def accept_input(self):
-        """接受输入内容并回调"""
+        """接受输入并调用回调函数"""
+        values = []
+        for field in self.input_fields:
+            if isinstance(field, QComboBox):
+                values.append(field.currentText())
+            else:
+                values.append(field.text())
+        
         if self.callback:
-            values = [field.text() for field in self.input_fields]
-            # 如果只有一个输入字段，返回单个值而不是列表
-            self.callback(values[0] if len(values) == 1 else values)
+            self.callback(values)
+        
         self.accept()
+    
+    def get_values(self):
+        """获取输入值"""
+        return [field.text() if isinstance(field, QLineEdit) else field.currentText() for field in self.input_fields]

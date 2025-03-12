@@ -69,10 +69,17 @@ class Config:
             for key, value in new.items():
                 if key in current and isinstance(current[key], dict) and isinstance(value, dict):
                     deep_update(current[key], value)
+                elif key == 'accounts' and isinstance(value, list):
+                    # 特殊处理账号列表，确保完整更新
+                    current[key] = value.copy()
                 else:
                     current[key] = value
                     
         deep_update(self.config, new_config)
+        
+        # 如果更新包含accounts，立即保存
+        if 'accounts' in new_config:
+            self.save()
         
     def get(self, key, default=None):
         """获取配置值"""
@@ -81,3 +88,7 @@ class Config:
     def set(self, key, value):
         """设置配置值"""
         self.config[key] = value
+        
+        # 如果是账号数据，立即保存
+        if key == 'accounts':
+            self.save()

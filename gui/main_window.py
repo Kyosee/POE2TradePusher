@@ -32,6 +32,25 @@ class InitThread(QThread):
         # 初始化监控管理器
         self.main_window._init_monitor_manager()
         
+        # 预初始化 OCR 和 YOLO 模型
+        from utils.model_loader import OCRModelLoader, YOLOModelLoader
+        try:
+            # 初始化OCR模型
+            self.main_window.log_message("正在后台初始化 OCR 引擎...", "INFO")
+            ocr_loader = OCRModelLoader()
+            ocr_loader.load_model_async(callback=lambda success, error: 
+                self.main_window.log_message("OCR 引擎初始化完成" if success else f"OCR 引擎初始化失败: {error}", 
+                                          "INFO" if success else "ERROR"))
+            
+            # 初始化YOLO模型
+            self.main_window.log_message("正在后台初始化 YOLO 模型...", "INFO")
+            yolo_loader = YOLOModelLoader()
+            yolo_loader.load_model_async(callback=lambda success, error: 
+                self.main_window.log_message("YOLO 模型初始化完成" if success else f"YOLO 模型初始化失败: {error}", 
+                                           "INFO" if success else "ERROR"))
+        except Exception as e:
+            self.main_window.log_message(f"模型初始化失败: {str(e)}", "ERROR")
+        
         # 添加初始提示信息
         self.main_window.log_message("应用程序已启动，等待配置...", "INFO")
         self.main_window.log_message("请配置日志路径和至少一种推送方式", "INFO")
@@ -58,6 +77,7 @@ class MainWindow(QMainWindow):
         # 初始化状态
         self.is_minimized = False
         self.monitoring = False
+        self.is_quitting_from_tray = False
         
         # 创建中央窗口部件
         self.central_widget = QWidget()
@@ -139,8 +159,12 @@ class MainWindow(QMainWindow):
         self.content_panel.show_page('push_manage')
 
     def _show_currency_config(self):
-        """显示通货配置页面"""
+        """显示物品配置页面"""
         self.content_panel.show_page('currency_config')
+        
+    def _show_account_manage(self):
+        """显示账号管理页面"""
+        self.content_panel.show_page('account_manage')
         
     def _show_stats(self):
         """显示数据统计页面"""
@@ -169,6 +193,10 @@ class MainWindow(QMainWindow):
     def _show_tab_test(self):
         """显示Tab测试页面"""
         self.content_panel.show_page('tab_test')
+        
+    def _show_trade_test(self):
+        """显示交易测试页面"""
+        self.content_panel.show_page('trade_test')
         
     def setup_tray(self):
         """初始化系统托盘"""
@@ -324,12 +352,30 @@ class MainWindow(QMainWindow):
             
     def closeEvent(self, event):
         """处理窗口关闭事件"""
+        # 如果是从托盘菜单点击退出，则直接退出，不显示确认对话框
+        if self.is_quitting_from_tray:
+            # 直接退出，不再确认
+            if self.monitoring:
+                self.toggle_monitor()  # 停止监控
+            if hasattr(self, 'currency_fetcher'):
+                self.currency_fetcher.stop()
+            self.tray_icon.stop()  # 删除托盘图标
+            event.accept()  # 接受关闭事件
+            return
+            
+        # 正常关闭窗口时询问是否最小化到托盘
         if ask_yes_no("确认", "是否要最小化到系统托盘？\n\n选择\"否\"将退出程序"):
             event.ignore()
             self.hide()
             self.is_minimized = True
         else:
-            self.quit_app()
+            # 直接退出，不再二次确认
+            if self.monitoring:
+                self.toggle_monitor()  # 停止监控
+            if hasattr(self, 'currency_fetcher'):
+                self.currency_fetcher.stop()
+            self.tray_icon.stop()  # 删除托盘图标
+            event.accept()  # 接受关闭事件
             
     def get_currency_config(self):
         """获取已配置的通货单位列表"""
@@ -344,9 +390,17 @@ class MainWindow(QMainWindow):
         
     def quit_app(self):
         """退出应用程序"""
+        # 设置标志，表明这是从托盘菜单点击退出的
+        self.is_quitting_from_tray = True
+        
+        # 直接退出，不需要确认
         if self.monitoring:
             self.toggle_monitor()  # 停止监控
         if hasattr(self, 'currency_fetcher'):
             self.currency_fetcher.stop()
         self.tray_icon.stop()  # 删除托盘图标
         self.close()
+        
+        # 确保应用程序完全退出
+        from PySide6.QtWidgets import QApplication
+        QApplication.quit()

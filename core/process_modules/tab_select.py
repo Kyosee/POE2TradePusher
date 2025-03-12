@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 from core.process_module import ProcessModule
 from gui.pages.recognition_base_page import RecognitionBasePage
 from gui.utils import switch_to_window
-from paddleocr import PaddleOCR
+from utils.model_loader import OCRModelLoader
 
 class TabSelectModule(ProcessModule):
     """Tab选择流程模块"""
@@ -17,12 +17,35 @@ class TabSelectModule(ProcessModule):
         self.recognition_base = None
         self.preview_image = None
         self.show_preview = False
+        self._ocr_loader = OCRModelLoader()  # OCR 模型加载器
+
+    @classmethod
+    def pre_init(cls):
+        """预初始化 OCR，在程序启动后台线程中调用"""
+        # 使用OCRModelLoader异步加载OCR模型
+        ocr_loader = OCRModelLoader()
+        ocr_loader.load_model_async()
 
     def name(self) -> str:
         return "Tab选择"
 
     def description(self) -> str:
         return "识别并点击指定的Tab标签"
+        
+    def _get_ocr(self):
+        """获取 OCR 实例"""
+        # 从OCRModelLoader获取模型实例
+        if self._ocr_loader.is_loaded():
+            return self._ocr_loader.get_model()
+        else:
+            # 如果模型尚未加载，尝试同步加载
+            try:
+                self._log_callback("OCR模型尚未加载，正在尝试加载...", "INFO")
+                self._ocr_loader._load_model_impl()
+                return self._ocr_loader.get_model()
+            except Exception as e:
+                self._log_callback(f"OCR模型加载失败: {str(e)}", "ERROR")
+                return None
 
     def run(self, tab_text=None, show_preview=False, **kwargs):
         """运行模块，识别并点击指定的Tab标签
@@ -63,18 +86,8 @@ class TabSelectModule(ProcessModule):
             original_image = self.recognition_base._grab_screen(rect)
             original_cv = self.recognition_base._convert_to_cv(original_image)
             
-            # 使用PaddleOCR PP-OCRv4轻量化模型识别文本区域
-            ocr = PaddleOCR(
-                use_angle_cls=True, 
-                lang="ch", 
-                show_log=False, 
-                use_mp=True,        # 使用多进程加速
-                total_process_num=2, # 使用2个进程
-                use_pp_ocr_v4=True,  # 启用PP-OCRv4轻量化模型
-                det_limit_side_len=960, # 检测模型的输入尺寸
-                rec_batch_num=6,    # 识别模型batch大小
-                enable_mkldnn=True  # 启用mkldnn加速
-            )
+            # 获取或初始化 OCR 实例
+            ocr = self._get_ocr()
             
             # 直接使用原始图像进行识别
             result = ocr.ocr(original_cv, cls=True)

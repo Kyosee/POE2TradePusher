@@ -8,3 +8,33 @@ pywin32>=306
 PySide6>=6.6.1
 paddlepaddle>=2.6.0
 paddleocr>=2.9.0
+cloudscraper>=1.2.71
+undetected-chromedriver>=3.5.0
+
+# 基本依赖
+torch>=2.0.0
+torchvision>=0.15.0
+pyyaml>=5.3.1
+matplotlib>=3.2.0
+scipy>=1.4.1
+pandas>=1.1.4
+
+# YOLOv11依赖
+seaborn>=0.11.0
+psutil>=5.9.0
+thop>=0.1.1
+ultralytics>=8.0.0
+
+# 核心库
+PySide6>=6.4.0
+pillow>=9.3.0
+opencv-python>=4.6.0
+pytesseract>=0.3.10
+numpy>=1.23.5
+requests>=2.28.1
+psutil>=5.9.4
+pydirectinput>=1.0.4
+
+# 验证账号相关
+capsolver>=0.0.2
+js2py>=0.74

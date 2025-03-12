@@ -31,7 +31,8 @@ class MenuPanel(QFrame):
         menu_items = [
             ('基本配置', self.show_basic_config, []),
             ('推送配置', self.show_push_manage, []),
-            ('通货配置', self.show_currency_config, []),
+            ('物品配置', self.show_currency_config, []),
+            ('账号管理', self.show_account_manage, []),
             ('数据统计', self.show_stats, []),
             ('自动交易', self.show_auto_trade, []),
             ('触发日志', self.show_log, []),
@@ -39,7 +40,8 @@ class MenuPanel(QFrame):
                 ('仓库测试', self.show_stash_recognition),
                 ('定位测试', self.show_grid_recognition),
                 ('命令测试', self.show_command_test),
-                ('Tab测试', self.show_tab_test)
+                ('Tab测试', self.show_tab_test),
+                ('交易测试', self.show_trade_test)
             ])
         ]
         
@@ -166,41 +168,51 @@ class MenuPanel(QFrame):
         self._update_menu_state(1)
     
     def show_currency_config(self):
-        """显示通货配置页面"""
+        """显示物品配置页面"""
         self.main_window._show_currency_config()
         self._update_menu_state(2)
+        
+    def show_account_manage(self):
+        """显示账号管理页面"""
+        self.main_window._show_account_manage()
+        self._update_menu_state(3)
     
     def show_stats(self):
         """显示数据统计页面"""
         self.main_window._show_stats()
-        self._update_menu_state(3)
+        self._update_menu_state(4)
     
     def show_auto_trade(self):
         """显示自动交易页面"""
         self.main_window._show_auto_trade()
-        self._update_menu_state(4)
+        self._update_menu_state(5)
     
     def show_log(self):
         """显示日志页面"""
         self.main_window._show_log()
-        self._update_menu_state(5)
+        self._update_menu_state(6)
     
     def show_stash_recognition(self):
         """显示仓库识别页面"""
         self.main_window._show_stash_recognition()
-        self._update_menu_state(6, '仓库测试')
+        self._update_menu_state(7, '仓库测试')
     
     def show_grid_recognition(self):
         """显示仓位识别页面"""
         self.main_window._show_grid_recognition()
-        self._update_menu_state(6, '定位测试')
+        self._update_menu_state(7, '定位测试')
     
     def show_command_test(self):
         """显示命令测试页面"""
         self.main_window._show_command_test()
-        self._update_menu_state(6, '命令测试')
+        self._update_menu_state(7, '命令测试')
         
     def show_tab_test(self):
         """显示Tab测试页面"""
         self.main_window._show_tab_test()
-        self._update_menu_state(6, 'Tab测试')
+        self._update_menu_state(7, 'Tab测试')
+        
+    def show_trade_test(self):
+        """显示交易测试页面"""
+        self.main_window._show_trade_test()
+        self._update_menu_state(7, '交易测试')

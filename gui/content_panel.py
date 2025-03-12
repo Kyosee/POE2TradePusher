@@ -5,6 +5,8 @@ from .pages.position_test_page import PositionTestPage
 from .pages.command_test_page import CommandTestPage
 from .pages.auto_trade_page import AutoTradePage
 from .pages.tab_test_page import TabTestPage
+from .pages.trade_test_page import TradeTestPage
+from .pages.account_manage_page import AccountManagePage
 
 class ContentPanel(QFrame):
     """右侧内容面板，管理所有页面"""
@@ -41,11 +43,17 @@ class ContentPanel(QFrame):
         self.push_manage_page.setProperty('class', 'page-container')
         self.content_layout.addWidget(self.push_manage_page)
         
-        # 创建通货配置页面
+        # 创建物品配置页面
         self.currency_config_page = CurrencyConfigPage(self, self.log_message, 
                                                      self.update_status_bar, self.main_window.save_config)
         self.currency_config_page.setProperty('class', 'page-container')
         self.content_layout.addWidget(self.currency_config_page)
+        
+        # 创建账号管理页面
+        self.account_manage_page = AccountManagePage(self, self.log_message, 
+                                                  self.update_status_bar, self.main_window.save_config)
+        self.account_manage_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.account_manage_page)
         
         # 创建日志页面
         self.log_page = LogPage(self, self.log_message, 
@@ -87,18 +95,26 @@ class ContentPanel(QFrame):
         self.tab_test_page.setProperty('class', 'page-container')
         self.content_layout.addWidget(self.tab_test_page)
         
+        # 创建交易测试页面
+        self.trade_test_page = TradeTestPage(self, self.log_message,
+                                          self.update_status_bar, self.main_window)
+        self.trade_test_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.trade_test_page)
+        
         # 创建页面映射字典，方便按名称显示
         self.pages = {
             'basic_config': self.basic_config_page,
             'push_manage': self.push_manage_page,
             'currency_config': self.currency_config_page,
+            'account_manage': self.account_manage_page,
             'log': self.log_page,
             'stats': self.stats_page,
             'stash_recognition': self.stash_recognition_page,
             'grid_recognition': self.grid_recognition_page,
             'command_test': self.command_test_page,
             'auto_trade': self.auto_trade_page,
-            'tab_test': self.tab_test_page
+            'tab_test': self.tab_test_page,
+            'trade_test': self.trade_test_page
         }
     
     def show_page(self, page_name):
@@ -131,7 +147,7 @@ class ContentPanel(QFrame):
                 page.save_config = None
         
         # 设置配置数据
-        for page_name in ['basic_config_page', 'push_manage_page', 'currency_config_page', 'auto_trade_page']:
+        for page_name in ['basic_config_page', 'push_manage_page', 'currency_config_page', 'account_manage_page', 'auto_trade_page']:
             page = getattr(self, page_name)
             if hasattr(page, 'set_config_data'):
                 page.set_config_data(config_data)
@@ -157,7 +173,7 @@ class ContentPanel(QFrame):
         
         # 获取并合并所有配置
         merged_config = {}
-        for page_name in ['basic_config_page', 'push_manage_page', 'currency_config_page', 'auto_trade_page']:
+        for page_name in ['basic_config_page', 'push_manage_page', 'currency_config_page', 'account_manage_page', 'auto_trade_page']:
             page = getattr(self, page_name)
             if hasattr(page, 'get_config_data'):
                 page_config = page.get_config_data()
