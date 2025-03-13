@@ -96,49 +96,22 @@ class ItemConfigPage(QWidget, LoggingMixin, ConfigMixin):
         
         parent_layout.addLayout(search_layout)
         
-        # 输入框和按钮
-        input_layout = QHBoxLayout()
+        # 添加物品按钮区域
+        button_layout = QHBoxLayout()
         
-        currency_label = QLabel("物品名称:")
-        self.currency_entry = QLineEdit()
-        
-        alias_label = QLabel("物品别名:")
-        self.alias_entry = QLineEdit()
-        
-        category_label = QLabel("物品类别:")
-        self.category_combo = QComboBox()
-        self.category_combo.addItems(self.currency_categories)
-        
-        stack_size_label = QLabel("堆叠上限:")
-        self.stack_size_entry = QLineEdit()
-        self.stack_size_entry.setValidator(QIntValidator(0, 9999)) # 设置只能输入数字
-        self.stack_size_entry.setFixedWidth(60) # 设置适当的宽度
-        
-        self.add_currency_btn = QPushButton("➕ 添加")
-        self.add_currency_btn.clicked.connect(self.add_currency)
+        self.add_currency_btn = QPushButton("➕ 添加物品")
+        self.add_currency_btn.clicked.connect(self.show_add_currency_dialog)
         self.add_currency_btn.setProperty('class', 'normal-button')
         
-        self.clear_currency_btn = QPushButton("🔄 清空")
+        self.clear_currency_btn = QPushButton("🔄 清空列表")
         self.clear_currency_btn.clicked.connect(self.clear_currencies)
         self.clear_currency_btn.setProperty('class', 'danger-button')
         
-        input_layout.addWidget(currency_label)
-        input_layout.addWidget(self.currency_entry)
-        input_layout.addWidget(alias_label)
-        input_layout.addWidget(self.alias_entry)
-        input_layout.addWidget(category_label)
-        input_layout.addWidget(self.category_combo)
-        input_layout.addWidget(stack_size_label)
-        input_layout.addWidget(self.stack_size_entry)
-        input_layout.addWidget(self.add_currency_btn)
-        input_layout.addWidget(self.clear_currency_btn)
+        button_layout.addWidget(self.add_currency_btn)
+        button_layout.addWidget(self.clear_currency_btn)
+        button_layout.addStretch()
         
-        # 设置回车键触发添加
-        self.currency_entry.returnPressed.connect(self.add_currency)
-        self.alias_entry.returnPressed.connect(self.add_currency)
-        self.stack_size_entry.returnPressed.connect(self.add_currency)
-        
-        parent_layout.addLayout(input_layout)
+        parent_layout.addLayout(button_layout)
         
         # 创建表格
         self.currency_table = QTableWidget()
@@ -364,51 +337,62 @@ class ItemConfigPage(QWidget, LoggingMixin, ConfigMixin):
             stack_size_item.setTextAlignment(Qt.AlignCenter)
             self.currency_table.setItem(row, 4, stack_size_item)
                                      
-    def add_currency(self):
-        """添加物品"""
-        currency = self.currency_entry.text().strip()
-        alias = self.alias_entry.text().strip()
-        category = self.category_combo.currentText()
-        stack_size_text = self.stack_size_entry.text().strip()
-        
-        # 处理堆叠上限
-        try:
-            stack_size = int(stack_size_text) if stack_size_text else 0
-        except ValueError:
-            stack_size = 0
-        
-        if not currency:
-            self.log_message("无法添加空物品", "WARN")
-            return
-            
-        # 检查是否已存在
-        for item in self.currency_items:
-            if item.currency == currency:
-                self.log_message("物品已存在", "WARN")
-                return
-        
-        # 获取图片路径
-        img_path = self._get_resource_path(f"{currency.lower()}.png")
-        
-        # 添加到物品列表
-        self.currency_items.append(CurrencyData(currency=currency, alias=alias, img_path=img_path, 
-                                               category=category, stack_size=stack_size))
-        
-        # 清空输入框
-        self.currency_entry.clear()
-        self.alias_entry.clear()
-        self.stack_size_entry.clear()
-        self.currency_entry.setFocus()
-        
-        # 更新过滤列表和表格
-        self._filter_items()
-        self._update_table()
-        
-        # 记录日志
-        self.log_message(f"已添加物品: {currency}, 类别: {category}, 堆叠上限: {stack_size}")
-        if self.save_config:
-            self.save_config()
+    def show_add_currency_dialog(self):
+        """显示添加物品对话框"""
+        def save_new_currency(currency, alias, category, stack_size_text):
+            # 验证输入
+            if not currency:
+                show_message("提示", "物品名称不能为空", "warning")
+                return False
                 
+            # 检查是否已存在
+            for item in self.currency_items:
+                if item.currency == currency:
+                    show_message("提示", "物品已存在", "warning")
+                    return False
+            
+            # 处理堆叠上限
+            try:
+                stack_size = int(stack_size_text) if stack_size_text else 0
+                if stack_size < 0:
+                    stack_size = 0
+            except ValueError:
+                stack_size = 0
+            
+            # 获取图片路径
+            img_path = self._get_resource_path(f"{currency.lower()}.png")
+            
+            # 添加到物品列表
+            self.currency_items.append(CurrencyData(currency=currency, alias=alias, img_path=img_path, 
+                                                  category=category, stack_size=stack_size))
+            
+            # 更新过滤列表和表格
+            self._filter_items()
+            self._update_table()
+            
+            # 记录日志
+            self.log_message(f"已添加物品: {currency}, 类别: {category}, 堆叠上限: {stack_size}")
+            if self.save_config:
+                self.save_config()
+                
+            return True
+            
+        # 使用InputDialog进行添加
+        dialog = InputDialog(self, "添加物品", 
+                           ["物品名称:", "物品别名:", "物品类别:", "堆叠上限:"], 
+                           ["", "", self.currency_categories[0], ""], 
+                           lambda values: save_new_currency(values[0], values[1], values[2], values[3]),
+                           combo_options={2: self.currency_categories})
+        
+        # 在对话框创建后手动设置验证器
+        dialog.input_fields[3].setValidator(QIntValidator(0, 9999))
+        
+        dialog.exec_()
+        
+    def add_currency(self):
+        """保留旧方法以兼容现有代码，调用新的弹窗方法"""
+        self.show_add_currency_dialog()
+        
     def _on_table_item_clicked(self, item):
         """处理表格项点击事件"""
         row = item.row()
@@ -481,8 +465,10 @@ class ItemConfigPage(QWidget, LoggingMixin, ConfigMixin):
                            ["物品名称:", "物品别名:", "物品类别:", "堆叠上限:"], 
                            [current_currency, current_alias, current_category, current_stack_size], 
                            lambda values: save_edit(values[0], values[1], values[2], values[3]),
-                           combo_options={2: self.currency_categories},
-                           validators={3: QIntValidator(0, 9999)})  # 直接传递验证器
+                           combo_options={2: self.currency_categories})
+        
+        # 在对话框创建后手动设置验证器
+        dialog.input_fields[3].setValidator(QIntValidator(0, 9999))
         
         dialog.exec_()
             

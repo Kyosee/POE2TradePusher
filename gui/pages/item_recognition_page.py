@@ -248,16 +248,24 @@ class ItemRecognitionPage(RecognitionBasePage):
         preview_title.setProperty('class', 'card-title')
         preview_layout.addWidget(preview_title)
         
+        # 创建滚动区域来容纳预览标签
+        self.preview_scroll = QScrollArea()
+        self.preview_scroll.setWidgetResizable(True)
+        self.preview_scroll.setMinimumHeight(350)  # 设置滚动区域的最小高度
+        self.preview_scroll.setStyleSheet("background-color: #f0f0f0; border: 1px solid #ddd;")
+        
         # 创建新的预览标签
         self.preview_label = QLabel()
         self.preview_label.setAlignment(Qt.AlignCenter)
-        self.preview_label.setMinimumHeight(350)  # 稍微减小高度
         self.preview_label.setText("预览区域 - 点击识别按钮开始")
-        self.preview_label.setStyleSheet("background-color: #f0f0f0; border: 1px solid #ddd;")
         self.preview_label.setCursor(QCursor(Qt.PointingHandCursor))  # 设置鼠标指针为手型
         self.preview_label.mousePressEvent = self._on_preview_clicked  # 添加点击事件处理
         
-        preview_layout.addWidget(self.preview_label)
+        # 将预览标签添加到滚动区域
+        self.preview_scroll.setWidget(self.preview_label)
+        
+        # 将滚动区域添加到布局
+        preview_layout.addWidget(self.preview_scroll)
         self.main_layout.addWidget(preview_frame, 3)  # 设置拉伸因子为3
         
         # 创建检测结果区域 - 使用表格显示结果
@@ -549,19 +557,10 @@ class ItemRecognitionPage(RecognitionBasePage):
     def _update_preview_image(self, cv_image):
         """更新预览图像"""
         try:
-            # 转换OpenCV图像为QPixmap
-            height, width = cv_image.shape[:2]
-            
-            # 调整图像大小以适应预览区域
-            preview_width = 800
-            ratio = preview_width / width
-            preview_height = int(height * ratio)
-            
-            # 调整图像大小
-            resized_image = cv2.resize(cv_image, (preview_width, preview_height))
+            # 转换OpenCV图像为QPixmap，直接使用原图尺寸不做缩放
             
             # 转换为RGB格式
-            rgb_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
+            rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_image.shape
             
             # 转换为QImage
@@ -574,6 +573,9 @@ class ItemRecognitionPage(RecognitionBasePage):
             # 设置预览图像
             pixmap = QPixmap.fromImage(q_image)
             self.preview_label.setPixmap(pixmap)
+            
+            # 调整标签大小以适应图像
+            self.preview_label.resize(pixmap.size())
             
             # 添加提示文本，提醒用户可以点击放大
             self.preview_label.setToolTip("点击预览图可查看大图")
