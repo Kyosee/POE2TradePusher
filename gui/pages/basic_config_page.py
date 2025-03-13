@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QWidget, QFrame, QVBoxLayout, QHBoxLayout, 
                                     QLabel, QLineEdit, QPushButton, QSpinBox,
                                     QListWidget, QMenu, QTextEdit, QFileDialog,
-                                    QComboBox)
+                                    QComboBox, QSlider, QGroupBox)
 from PySide6.QtCore import Qt, Signal
 from ..utils import LoggingMixin, ConfigMixin, show_message, ask_yes_no
 from utils.help_texts import KEYWORD_HELP
@@ -28,6 +28,7 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self._create_game_frame()
         self._create_file_frame()
         self._create_settings_frame()
+        self._create_recognition_settings()
         self._create_keywords_frame()
         self._setup_keyword_menu()
         
@@ -131,6 +132,56 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self.main_layout.addWidget(title_label)
         self.main_layout.addWidget(settings_frame)
         
+    def _create_recognition_settings(self):
+        """创建识别设置组"""
+        recognition_frame = QFrame()
+        recognition_frame.setProperty('class', 'card-frame')
+        recognition_layout = QVBoxLayout(recognition_frame)
+        recognition_layout.setContentsMargins(10, 10, 10, 10)
+        
+        title_label = QLabel("识别设置")
+        title_label.setProperty('class', 'card-title')
+        
+        # 创建识别阈值设置
+        threshold_layout = QHBoxLayout()
+        threshold_label = QLabel("物品识别阈值:")
+        
+        # 创建阈值滑块和数值显示组件
+        self.threshold_slider = QSlider(Qt.Horizontal)
+        self.threshold_slider.setMinimum(10)  # 0.1
+        self.threshold_slider.setMaximum(100) # 1.0
+        self.threshold_slider.setValue(50)    # 默认0.5
+        self.threshold_slider.setTickPosition(QSlider.TicksBelow)
+        self.threshold_slider.setTickInterval(10)
+        self.threshold_slider.valueChanged.connect(self._on_settings_change)
+        
+        self.threshold_spin = QSpinBox()
+        self.threshold_spin.setMinimum(10)
+        self.threshold_spin.setMaximum(100)
+        self.threshold_spin.setValue(50)
+        self.threshold_spin.setSuffix("%")
+        self.threshold_spin.setFixedWidth(70)
+        self.threshold_spin.valueChanged.connect(self._on_settings_change)
+        
+        # 连接滑块和数值框的值变化信号
+        self.threshold_slider.valueChanged.connect(self.threshold_spin.setValue)
+        self.threshold_spin.valueChanged.connect(self.threshold_slider.setValue)
+        
+        # 添加提示信息
+        threshold_tip = QLabel("(较低的阈值可识别更多物品，但可能会增加误识别)")
+        threshold_tip.setStyleSheet("color: #888888; font-size: 12px;")
+        
+        # 添加到布局
+        threshold_layout.addWidget(threshold_label)
+        threshold_layout.addWidget(self.threshold_slider)
+        threshold_layout.addWidget(self.threshold_spin)
+        
+        recognition_layout.addLayout(threshold_layout)
+        recognition_layout.addWidget(threshold_tip)
+        
+        self.main_layout.addWidget(title_label)
+        self.main_layout.addWidget(recognition_frame)
+        
     def _create_keywords_frame(self):
         """创建关键词管理区域"""
         keywords_frame = QFrame()
@@ -223,7 +274,7 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         
         copy_action = self.keyword_menu.addAction("📋 复制")
         copy_action.triggered.connect(self.copy_keyword)
-                                    
+                                  
     def show_help(self):
         """显示帮助信息"""
         dialog = MessageDialog(self, "关键词帮助", KEYWORD_HELP)
@@ -459,6 +510,7 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
             'currency_interval': self.currency_interval_spin.value(),
             'keywords': keywords,
             'always_on_top': self.top_switch.isChecked(),
+            'recognition_threshold': self.threshold_slider.value(),
             'wxpusher': current_config.get('wxpusher', {
                 'enabled': False,
                 'app_token': '',
@@ -491,6 +543,11 @@ class BasicConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self.interval_spin.setValue(data.get('interval', 1000))
         self.push_interval_entry.setValue(data.get('push_interval', 0))
         self.currency_interval_spin.setValue(data.get('currency_interval', 5))
+        
+        # 设置识别阈值
+        threshold_value = int(data.get('recognition_threshold', 50))
+        self.threshold_slider.setValue(threshold_value)
+        # 这将通过连接的信号自动更新self.threshold_spin
         
         self.keyword_list.clear()
         for kw in data.get('keywords', []):

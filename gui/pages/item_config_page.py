@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                               QTableWidget, QTableWidgetItem,
                               QHeaderView, QAbstractItemView, QComboBox)
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QIntValidator
 import os
 import sys
 from ..utils import LoggingMixin, ConfigMixin, show_message, ask_yes_no
@@ -12,13 +12,14 @@ from ..styles import Styles
 
 # 物品数据类，用于存储物品信息
 class CurrencyData:
-    def __init__(self, currency="", alias="", img_path="", category="通用"):
+    def __init__(self, currency="", alias="", img_path="", category="通用", stack_size=0):
         self.currency = currency
         self.alias = alias
         self.img_path = img_path
         self.category = category
+        self.stack_size = stack_size
         
-class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
+class ItemConfigPage(QWidget, LoggingMixin, ConfigMixin):
     def __init__(self, master, callback_log, callback_status, callback_save=None):
         super().__init__(master)
         LoggingMixin.__init__(self, callback_log, callback_status)
@@ -108,6 +109,11 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self.category_combo = QComboBox()
         self.category_combo.addItems(self.currency_categories)
         
+        stack_size_label = QLabel("堆叠上限:")
+        self.stack_size_entry = QLineEdit()
+        self.stack_size_entry.setValidator(QIntValidator(0, 9999)) # 设置只能输入数字
+        self.stack_size_entry.setFixedWidth(60) # 设置适当的宽度
+        
         self.add_currency_btn = QPushButton("➕ 添加")
         self.add_currency_btn.clicked.connect(self.add_currency)
         self.add_currency_btn.setProperty('class', 'normal-button')
@@ -122,19 +128,22 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         input_layout.addWidget(self.alias_entry)
         input_layout.addWidget(category_label)
         input_layout.addWidget(self.category_combo)
+        input_layout.addWidget(stack_size_label)
+        input_layout.addWidget(self.stack_size_entry)
         input_layout.addWidget(self.add_currency_btn)
         input_layout.addWidget(self.clear_currency_btn)
         
         # 设置回车键触发添加
         self.currency_entry.returnPressed.connect(self.add_currency)
         self.alias_entry.returnPressed.connect(self.add_currency)
+        self.stack_size_entry.returnPressed.connect(self.add_currency)
         
         parent_layout.addLayout(input_layout)
         
         # 创建表格
         self.currency_table = QTableWidget()
-        self.currency_table.setColumnCount(4)  # 图片、通货名称、别名、类别
-        self.currency_table.setHorizontalHeaderLabels(["图片", "物品名称", "物品别名", "物品类别"])
+        self.currency_table.setColumnCount(5)  # 图片、通货名称、别名、类别、堆叠上限
+        self.currency_table.setHorizontalHeaderLabels(["图片", "物品名称", "物品别名", "物品类别", "堆叠上限"])
         self.currency_table.setEditTriggers(QAbstractItemView.NoEditTriggers)  # 禁止编辑
         self.currency_table.setSelectionBehavior(QAbstractItemView.SelectRows)  # 选择整行
         self.currency_table.setSelectionMode(QAbstractItemView.SingleSelection)  # 单选
@@ -143,7 +152,9 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self.currency_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)  # 通货名称列自适应
         self.currency_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)  # 别名列自适应
         self.currency_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)  # 类别列自适应
+        self.currency_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Fixed)  # 堆叠上限列固定宽度
         self.currency_table.setColumnWidth(0, 40)  # 设置图片列宽度
+        self.currency_table.setColumnWidth(4, 80)  # 设置堆叠上限列宽度
         
         # 应用统一样式
         self.currency_table.setStyleSheet(self.styles.currency_table_style)
@@ -290,7 +301,7 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         
         # 按类别过滤
         selected_category = self.search_category_combo.currentText()
-        if selected_category != "全部":
+        if (selected_category != "全部"):
             self.filtered_items = [item for item in self.filtered_items if item.category == selected_category]
         
         # 按搜索文本过滤
@@ -347,12 +358,24 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
             self.currency_table.setItem(row, 1, QTableWidgetItem(item.currency))
             self.currency_table.setItem(row, 2, QTableWidgetItem(item.alias))
             self.currency_table.setItem(row, 3, QTableWidgetItem(item.category))
+            
+            # 添加堆叠上限单元格
+            stack_size_item = QTableWidgetItem(str(item.stack_size) if item.stack_size > 0 else "")
+            stack_size_item.setTextAlignment(Qt.AlignCenter)
+            self.currency_table.setItem(row, 4, stack_size_item)
                                      
     def add_currency(self):
         """添加物品"""
         currency = self.currency_entry.text().strip()
         alias = self.alias_entry.text().strip()
         category = self.category_combo.currentText()
+        stack_size_text = self.stack_size_entry.text().strip()
+        
+        # 处理堆叠上限
+        try:
+            stack_size = int(stack_size_text) if stack_size_text else 0
+        except ValueError:
+            stack_size = 0
         
         if not currency:
             self.log_message("无法添加空物品", "WARN")
@@ -368,11 +391,13 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         img_path = self._get_resource_path(f"{currency.lower()}.png")
         
         # 添加到物品列表
-        self.currency_items.append(CurrencyData(currency=currency, alias=alias, img_path=img_path, category=category))
+        self.currency_items.append(CurrencyData(currency=currency, alias=alias, img_path=img_path, 
+                                               category=category, stack_size=stack_size))
         
         # 清空输入框
         self.currency_entry.clear()
         self.alias_entry.clear()
+        self.stack_size_entry.clear()
         self.currency_entry.setFocus()
         
         # 更新过滤列表和表格
@@ -380,7 +405,7 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         self._update_table()
         
         # 记录日志
-        self.log_message(f"已添加物品: {currency}, 类别: {category}")
+        self.log_message(f"已添加物品: {currency}, 类别: {category}, 堆叠上限: {stack_size}")
         if self.save_config:
             self.save_config()
                 
@@ -411,8 +436,9 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         current_currency = item.currency
         current_alias = item.alias
         current_category = item.category
+        current_stack_size = str(item.stack_size) if item.stack_size > 0 else ""
         
-        def save_edit(new_currency, new_alias, new_category):
+        def save_edit(new_currency, new_alias, new_category, new_stack_size):
             if not new_currency:
                 show_message("提示", "物品名称不能为空", "warning")
                 return
@@ -423,11 +449,20 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
                     if existing_item.currency == new_currency and existing_item != item:
                         show_message("提示", "物品已存在", "warning")
                         return
+                        
+            # 处理堆叠上限
+            try:
+                stack_size = int(new_stack_size) if new_stack_size else 0
+                if stack_size < 0:
+                    stack_size = 0
+            except ValueError:
+                stack_size = 0
             
             # 更新物品数据
             item.currency = new_currency
             item.alias = new_alias
             item.category = new_category
+            item.stack_size = stack_size
             
             # 更新图片路径
             img_path = self._get_resource_path(f"{new_currency.lower()}.png")
@@ -437,16 +472,18 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
             self._filter_items()
             self._update_table()
             
-            self.log_message(f"物品已更新: {current_currency} → {new_currency}, 类别: {new_category}")
+            self.log_message(f"物品已更新: {current_currency} → {new_currency}, 类别: {new_category}, 堆叠上限: {stack_size}")
             if self.save_config:
                 self.save_config()
                 
         # 使用InputDialog进行编辑
         dialog = InputDialog(self, "编辑物品", 
-                           ["物品名称:", "物品别名:", "物品类别:"], 
-                           [current_currency, current_alias, current_category], 
-                           lambda values: save_edit(values[0], values[1], values[2]),
-                           combo_options={2: self.currency_categories})
+                           ["物品名称:", "物品别名:", "物品类别:", "堆叠上限:"], 
+                           [current_currency, current_alias, current_category, current_stack_size], 
+                           lambda values: save_edit(values[0], values[1], values[2], values[3]),
+                           combo_options={2: self.currency_categories},
+                           validators={3: QIntValidator(0, 9999)})  # 直接传递验证器
+        
         dialog.exec_()
             
     def remove_selected_currency(self):
@@ -514,7 +551,8 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         return {
             'currencies': [item.currency for item in self.currency_items],
             'currency_aliases': {item.currency: item.alias for item in self.currency_items if item.alias},
-            'currency_categories': {item.currency: item.category for item in self.currency_items}
+            'currency_categories': {item.currency: item.category for item in self.currency_items},
+            'currency_stack_sizes': {item.currency: item.stack_size for item in self.currency_items if item.stack_size > 0}
         }
         
     def set_config_data(self, data):
@@ -526,15 +564,18 @@ class CurrencyConfigPage(QWidget, LoggingMixin, ConfigMixin):
         # 获取别名和类别数据
         aliases = data.get('currency_aliases', {})
         categories = data.get('currency_categories', {})
+        stack_sizes = data.get('currency_stack_sizes', {})
         
         # 添加新的通货单位
         for currency in data.get('currencies', []):
             alias = aliases.get(currency, "")
             category = categories.get(currency, "通用")  # 默认类别为"通用"
+            stack_size = stack_sizes.get(currency, 0)
             img_path = self._get_resource_path(f"{currency.lower()}.png")
             
             # 添加到物品列表
-            self.currency_items.append(CurrencyData(currency=currency, alias=alias, img_path=img_path, category=category))
+            self.currency_items.append(CurrencyData(currency=currency, alias=alias, img_path=img_path, 
+                                                   category=category, stack_size=stack_size))
         
         # 更新过滤列表和表格
         self._filter_items()

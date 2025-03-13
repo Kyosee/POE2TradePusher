@@ -158,9 +158,9 @@ class MainWindow(QMainWindow):
         """显示推送管理页面"""
         self.content_panel.show_page('push_manage')
 
-    def _show_currency_config(self):
+    def _show_item_config(self):
         """显示物品配置页面"""
-        self.content_panel.show_page('currency_config')
+        self.content_panel.show_page('item_config')
         
     def _show_account_manage(self):
         """显示账号管理页面"""
@@ -377,10 +377,10 @@ class MainWindow(QMainWindow):
             self.tray_icon.stop()  # 删除托盘图标
             event.accept()  # 接受关闭事件
             
-    def get_currency_config(self):
+    def get_item_config(self):
         """获取已配置的通货单位列表"""
-        if hasattr(self, 'content_panel') and hasattr(self.content_panel, 'currency_config_page'):
-            return self.content_panel.currency_config_page.get_config_data().get('currencies', [])
+        if hasattr(self, 'content_panel') and hasattr(self.content_panel, 'item_config_page'):
+            return self.content_panel.item_config_page.get_config_data().get('currencies', [])
         return []
 
     def _update_currency_price(self, price):

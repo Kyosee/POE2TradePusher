@@ -172,8 +172,8 @@ class StatsPage(QWidget):
                 item.widget().deleteLater()
             
         # 获取最新的配置通货单位和统计数据
-        if hasattr(self.parent(), 'get_currency_config'):
-            self.configured_currencies = self.parent().get_currency_config()
+        if hasattr(self.parent(), 'get_item_config'):
+            self.configured_currencies = self.parent().get_item_config()
         
         # 获取所有需要显示的通货
         currencies = set(self.currency_stats.keys())
@@ -199,8 +199,8 @@ class StatsPage(QWidget):
         self.trade_message_count = data.get('trade_message_count', 0)
         
         # 重新获取已配置的通货单位
-        if hasattr(self.parent(), 'get_currency_config'):
-            self.configured_currencies = self.parent().get_currency_config()
+        if hasattr(self.parent(), 'get_item_config'):
+            self.configured_currencies = self.parent().get_item_config()
             
         # 更新显示
         self.message_count_label.setText(str(self.trade_message_count))

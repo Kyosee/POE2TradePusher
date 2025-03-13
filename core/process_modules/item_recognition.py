@@ -27,6 +27,9 @@ class ItemRecognitionModule(ProcessModule):
         self.last_result = None
         self.callback = None
         
+        # 加载配置中的阈值设置
+        self.threshold = self._load_threshold_from_config()
+        
     def name(self) -> str:
         return "物品识别"
         
@@ -212,12 +215,15 @@ class ItemRecognitionModule(ProcessModule):
         # 划分图像区域，只处理左上和左下
         top_left, bottom_left = self._divide_image(original_cv)
         
-        # 使用YOLO模型进行物品识别
+        # 使用YOLO模型进行物品识别，应用阈值设置
         model = self.yolo_loader.get_model()
         
-        # 对左上和左下区域进行识别
-        top_left_results = model(top_left)
-        bottom_left_results = model(bottom_left)
+        # 重新加载阈值以获取最新值
+        threshold = self._load_threshold_from_config()
+        
+        # 对左上和左下区域进行识别，使用配置的阈值
+        top_left_results = model(top_left, conf=threshold)
+        bottom_left_results = model(bottom_left, conf=threshold)
         
         # 处理识别结果
         top_left_items = self._filter_detections(top_left_results[0], item_name)
@@ -283,6 +289,9 @@ class ItemRecognitionModule(ProcessModule):
         if self.monitoring:
             self.logger.info("物品识别监测已经在运行中")
             return False
+        
+        # 监测时也重新加载阈值
+        self.threshold = self._load_threshold_from_config()
         
         self.callback = callback
         self.monitoring = True
@@ -355,3 +364,15 @@ class ItemRecognitionModule(ProcessModule):
             preview_callback(result['preview'])
         
         return result
+    
+    def _load_threshold_from_config(self):
+        """从配置文件加载阈值设置"""
+        try:
+            with open('config.json', 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                # 获取阈值设置（范围10-100转换为0.1-1.0）
+                threshold_value = config.get('recognition_threshold', 50)
+                return threshold_value / 100.0
+        except Exception:
+            # 默认返回0.5（50%）
+            return 0.5

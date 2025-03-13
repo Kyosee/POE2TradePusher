@@ -31,7 +31,7 @@ class MenuPanel(QFrame):
         menu_items = [
             ('基本配置', self.show_basic_config, []),
             ('推送配置', self.show_push_manage, []),
-            ('物品配置', self.show_currency_config, []),
+            ('物品配置', self.show_item_config, []),
             ('账号管理', self.show_account_manage, []),
             ('数据统计', self.show_stats, []),
             ('自动交易', self.show_auto_trade, []),
@@ -167,9 +167,9 @@ class MenuPanel(QFrame):
         self.main_window._show_push_manage()
         self._update_menu_state(1)
     
-    def show_currency_config(self):
+    def show_item_config(self):
         """显示物品配置页面"""
-        self.main_window._show_currency_config()
+        self.main_window._show_item_config()
         self._update_menu_state(2)
         
     def show_account_manage(self):

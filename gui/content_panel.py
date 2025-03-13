@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QFrame, QVBoxLayout
-from .pages import BasicConfigPage, PushManagePage, LogPage, CurrencyConfigPage, StatsPage
+from .pages import BasicConfigPage, PushManagePage, LogPage, ItemConfigPage, StatsPage
 from .pages.stash_test_page import StashTestPage
 from .pages.position_test_page import PositionTestPage
 from .pages.command_test_page import CommandTestPage
@@ -44,10 +44,10 @@ class ContentPanel(QFrame):
         self.content_layout.addWidget(self.push_manage_page)
         
         # 创建物品配置页面
-        self.currency_config_page = CurrencyConfigPage(self, self.log_message, 
+        self.item_config_page = ItemConfigPage(self, self.log_message, 
                                                      self.update_status_bar, self.main_window.save_config)
-        self.currency_config_page.setProperty('class', 'page-container')
-        self.content_layout.addWidget(self.currency_config_page)
+        self.item_config_page.setProperty('class', 'page-container')
+        self.content_layout.addWidget(self.item_config_page)
         
         # 创建账号管理页面
         self.account_manage_page = AccountManagePage(self, self.log_message, 
@@ -105,7 +105,7 @@ class ContentPanel(QFrame):
         self.pages = {
             'basic_config': self.basic_config_page,
             'push_manage': self.push_manage_page,
-            'currency_config': self.currency_config_page,
+            'item_config': self.item_config_page,
             'account_manage': self.account_manage_page,
             'log': self.log_page,
             'stats': self.stats_page,
@@ -140,14 +140,14 @@ class ContentPanel(QFrame):
         """设置配置数据到所有页面"""
         # 暂时禁用自动保存
         original_save_handlers = {}
-        for page_name in ['basic_config_page', 'push_manage_page', 'currency_config_page', 'auto_trade_page']:
+        for page_name in ['basic_config_page', 'push_manage_page', 'item_config_page', 'auto_trade_page']:
             page = getattr(self, page_name)
             if hasattr(page, 'save_config'):
                 original_save_handlers[page_name] = page.save_config
                 page.save_config = None
         
         # 设置配置数据
-        for page_name in ['basic_config_page', 'push_manage_page', 'currency_config_page', 'account_manage_page', 'auto_trade_page']:
+        for page_name in ['basic_config_page', 'push_manage_page', 'item_config_page', 'account_manage_page', 'auto_trade_page']:
             page = getattr(self, page_name)
             if hasattr(page, 'set_config_data'):
                 page.set_config_data(config_data)
@@ -173,7 +173,7 @@ class ContentPanel(QFrame):
         
         # 获取并合并所有配置
         merged_config = {}
-        for page_name in ['basic_config_page', 'push_manage_page', 'currency_config_page', 'account_manage_page', 'auto_trade_page']:
+        for page_name in ['basic_config_page', 'push_manage_page', 'item_config_page', 'account_manage_page', 'auto_trade_page']:
             page = getattr(self, page_name)
             if hasattr(page, 'get_config_data'):
                 page_config = page.get_config_data()

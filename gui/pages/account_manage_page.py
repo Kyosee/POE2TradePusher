@@ -42,6 +42,7 @@ class AccountManagePage(QWidget):
         self.page_size = 20  # 默认每页显示20条
         self.page_sizes = [15, 20, 50, 100]  # 可选的每页显示条数
         self.search_text = ""  # 搜索文本
+        self.banned_filter = "全部"  # 封禁状态筛选，默认显示全部
         
         # 创建按钮区域
         self.create_button_area()
@@ -137,6 +138,14 @@ class AccountManagePage(QWidget):
         self.search_input.textChanged.connect(self._on_search_text_changed)
         search_layout.addWidget(search_label)
         search_layout.addWidget(self.search_input)
+        
+        # 封禁状态筛选下拉框
+        banned_label = QLabel("封禁状态:")
+        self.banned_filter_combo = QComboBox()
+        self.banned_filter_combo.addItems(["全部", "已封禁", "未封禁", "待获取"])
+        self.banned_filter_combo.currentTextChanged.connect(self._on_banned_filter_changed)
+        search_layout.addWidget(banned_label)
+        search_layout.addWidget(self.banned_filter_combo)
         
         # 每页显示条数选择
         page_size_label = QLabel("每页显示:")
@@ -629,10 +638,18 @@ class AccountManagePage(QWidget):
                 if self.save_config:
                     self.save_config()
     
+    def _on_banned_filter_changed(self, filter_value):
+        """处理封禁状态筛选变化"""
+        self.banned_filter = filter_value
+        self.current_page = 1  # 重置到第一页
+        self._filter_accounts()
+        self.refresh_account_table()
+    
     def _filter_accounts(self):
-        """根据搜索文本过滤账号列表"""
+        """根据搜索文本和封禁状态过滤账号列表"""
+        # 首先使用搜索文本过滤
         if not self.search_text:
-            self.filtered_accounts = self.accounts
+            self.filtered_accounts = self.accounts.copy()
         else:
             search_text = self.search_text.lower()
             self.filtered_accounts = [account for account in self.accounts
@@ -640,6 +657,21 @@ class AccountManagePage(QWidget):
                                        search_text in account.get('username', '').lower() or
                                        search_text in account.get('steam_account', '').lower() or
                                        search_text in account.get('note', '').lower()]
+        
+        # 然后根据封禁状态进一步过滤
+        if self.banned_filter != "全部":
+            filtered_by_banned = []
+            for account in self.filtered_accounts:
+                banned_status = account.get('banned')
+                
+                if self.banned_filter == "已封禁" and banned_status == 1:
+                    filtered_by_banned.append(account)
+                elif self.banned_filter == "未封禁" and banned_status == 0:
+                    filtered_by_banned.append(account)
+                elif self.banned_filter == "待获取" and banned_status != 0 and banned_status != 1:
+                    filtered_by_banned.append(account)
+            
+            self.filtered_accounts = filtered_by_banned
     
     def _update_pagination_controls(self):
         """更新分页控制器状态"""
@@ -784,6 +816,13 @@ class AccountManagePage(QWidget):
         # 设置线程数
         if hasattr(self, 'thread_count_input'):
             self.thread_count_input.setValue(config_data.get('thread_count', 1))
+        
+        # 还原筛选设置
+        if hasattr(self, 'banned_filter_combo') and 'banned_filter' in config_data:
+            index = self.banned_filter_combo.findText(config_data['banned_filter'])
+            if index >= 0:
+                self.banned_filter_combo.setCurrentIndex(index)
+                self.banned_filter = config_data['banned_filter']
             
         self.refresh_account_table()
     
@@ -791,7 +830,8 @@ class AccountManagePage(QWidget):
         """获取配置数据"""
         return {
             'accounts': self.accounts,
-            'thread_count': self.thread_count_input.value()
+            'thread_count': self.thread_count_input.value(),
+            'banned_filter': self.banned_filter
         }
         
     def on_thread_count_changed(self):
