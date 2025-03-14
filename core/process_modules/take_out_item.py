@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from PIL import Image, ImageTk
+from PIL import Image
 import win32gui
 import win32con
 import win32api

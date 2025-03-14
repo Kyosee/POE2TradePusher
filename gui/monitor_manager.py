@@ -87,10 +87,10 @@ class MonitorManager:
         
         # 推送平台映射
         pusher_mapping = {
-            'wxpusher': ('push.wxpusher', 'WxPusher'),
-            'email': ('push.email_pusher', 'EmailPusher'),
-            'serverchan': ('push.serverchan', 'ServerChan'),
-            'qmsgchan': ('push.qmsgchan', 'QmsgChan')
+            'wxpusher': ('core.push.wxpusher', 'WxPusher'),
+            'email': ('core.push.email_pusher', 'EmailPusher'),
+            'serverchan': ('core.push.serverchan', 'ServerChan'),
+            'qmsgchan': ('core.push.qmsgchan', 'QmsgChan')
         }
         
         # 动态导入和初始化每个启用的推送平台

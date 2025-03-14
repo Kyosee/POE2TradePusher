@@ -299,7 +299,7 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
             
         self.log_message("正在测试WxPusher配置...", "INFO")
         show_message("测试", "正在发送WxPusher测试消息...", "info", self)
-        from push.wxpusher import WxPusher
+        from core.push.wxpusher import WxPusher
         pusher = WxPusher(config, self.log_message)
         success, message = pusher.test()
         
@@ -340,7 +340,7 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
                 
         self.log_message("正在测试邮箱配置...", "INFO")
         show_message("测试", "正在发送测试邮件...", "info", self)
-        from push.email_pusher import EmailPusher
+        from core.push.email_pusher import EmailPusher
         pusher = EmailPusher(config, self.log_message)
         success, message = pusher.test()
         
@@ -370,7 +370,7 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
             
         self.log_message("正在测试Server酱配置...", "INFO")
         show_message("测试", "正在发送Server酱测试消息...", "info", self)
-        from push.serverchan import ServerChan
+        from core.push.serverchan import ServerChan
         pusher = ServerChan(config, self.log_message)
         success, message = pusher.test()
         
@@ -407,7 +407,7 @@ class PushManagePage(QWidget, LoggingMixin, ConfigMixin):
             
         self.log_message("正在测试Qmsg酱配置...", "INFO")
         show_message("测试", "正在发送Qmsg酱测试消息...", "info", self)
-        from push.qmsgchan import QmsgChan
+        from core.push.qmsgchan import QmsgChan
         pusher = QmsgChan(config, self.log_message)
         success, message = pusher.test()
         
